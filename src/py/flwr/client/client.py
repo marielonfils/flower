@@ -86,7 +86,7 @@ class Client(ABC):
             parameters=Parameters(tensor_type="", tensors=[]),
         )
 
-    def fit(self, ins: FitIns) -> FitRes:
+    def fit(self, ins: FitIns,config=None,flat=False) -> FitRes:
         """Refine the provided parameters using the locally held dataset.
 
         Parameters
@@ -112,8 +112,64 @@ class Client(ABC):
             num_examples=0,
             metrics={},
         )
+    
+    def fit_enc(self, ins: FitIns,config=None,flat=False) -> FitRes:
+        """Refine the provided parameters using the locally held dataset.
+
+        Parameters
+        ----------
+        ins : FitIns
+            The training instructions containing (global) model parameters
+            received from the server and a dictionary of configuration values
+            used to customize the local training process.
+
+        Returns
+        -------
+        FitRes
+            The training result containing updated parameters and other details
+            such as the number of local training examples used for training.
+        """
+        _ = (self, ins)
+        return FitRes(
+            status=Status(
+                code=Code.FIT_NOT_IMPLEMENTED,
+                message="Client does not implement `fit`",
+            ),
+            parameters=Parameters(tensor_type="", tensors=[]),
+            num_examples=0,
+            metrics={},
+        )
+    
 
     def evaluate(self, ins: EvaluateIns) -> EvaluateRes:
+        """Evaluate the provided parameters using the locally held dataset.
+
+        Parameters
+        ----------
+        ins : EvaluateIns
+            The evaluation instructions containing (global) model parameters
+            received from the server and a dictionary of configuration values
+            used to customize the local evaluation process.
+
+        Returns
+        -------
+        EvaluateRes
+            The evaluation result containing the loss on the local dataset and
+            other details such as the number of local data examples used for
+            evaluation.
+        """
+        _ = (self, ins)
+        return EvaluateRes(
+            status=Status(
+                code=Code.EVALUATE_NOT_IMPLEMENTED,
+                message="Client does not implement `evaluate`",
+            ),
+            loss=0.0,
+            num_examples=0,
+            metrics={},
+        )
+    
+    def evaluate_enc(self, ins: EvaluateIns) -> EvaluateRes:
         """Evaluate the provided parameters using the locally held dataset.
 
         Parameters
@@ -168,10 +224,18 @@ def has_fit(client: Client) -> bool:
     """Check if Client implements fit."""
     return type(client).fit != Client.fit
 
+def has_fit_enc(client: Client) -> bool:
+    """Check if Client implements fit."""
+    return type(client).fit_enc != Client.fit_enc
+
 
 def has_evaluate(client: Client) -> bool:
     """Check if Client implements evaluate."""
     return type(client).evaluate != Client.evaluate
+
+def has_evaluate_enc(client: Client) -> bool:
+    """Check if Client implements evaluate."""
+    return type(client).evaluate_enc != Client.evaluate_enc
 
 
 def maybe_call_get_properties(
@@ -233,6 +297,16 @@ def maybe_call_fit(client: Client, fit_ins: FitIns) -> FitRes:
     # If the client implements `fit`, call it
     return client.fit(fit_ins)
 
+def maybe_call_fit_enc(client: Client, enc, n) -> FitRes:
+    """Call `fit` if the client overrides it."""
+    # Check if client overrides `fit`
+    if not has_fit_enc(client=client):
+        # If client does not override `fit`, don't call it
+        return None
+
+    # If the client implements `fit`, call it
+    return client.fit_enc(enc, n, True)
+
 
 def maybe_call_evaluate(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRes:
     """Call `evaluate` if the client overrides it."""
@@ -252,3 +326,23 @@ def maybe_call_evaluate(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRe
 
     # If the client implements `evaluate`, call it
     return client.evaluate(evaluate_ins)
+
+def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRes:
+    """Call `evaluate` if the client overrides it."""
+    # Check if client overrides `evaluate`
+    if not has_evaluate_enc(client=client):
+        # If client does not override `evaluate`, don't call it
+        #status = Status(
+        #    code=Code.EVALUATE_NOT_IMPLEMENTED,
+        #    message="Client does not implement `evaluate`",
+        #)
+        #return EvaluateRes(
+        #    status=status,
+        #    loss=0.0,
+        #    num_examples=0,
+        #    metrics={},
+        #)
+        return None
+
+    # If the client implements `evaluate`, call it
+    return client.evaluate_enc(None)

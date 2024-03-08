@@ -92,6 +92,28 @@ class GetParametersRes:
     status: Status
     parameters: Parameters
 
+@dataclass
+class GetPKIns:
+    """GetPK instructions for a client."""
+
+    pk: List[int]
+
+@dataclass
+class GetPKRes:
+    """GetPK response from a client."""
+
+    pk: List[int]
+
+@dataclass
+class SendPKIns:
+    """SendPK instructions for a client."""
+
+    pk: List[int]
+
+@dataclass
+class SendPKRes:
+    """SendPK response from a client."""
+    status: str
 
 @dataclass
 class FitIns:

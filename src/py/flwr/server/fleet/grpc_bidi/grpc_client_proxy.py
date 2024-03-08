@@ -15,7 +15,7 @@
 """Flower ClientProxy implementation using gRPC bidirectional streaming."""
 
 
-from typing import Optional
+from typing import Optional, List, Tuple
 
 from flwr import common
 from flwr.common import serde
@@ -90,6 +90,173 @@ class GrpcClientProxy(ClientProxy):
         client_msg: ClientMessage = res_wrapper.client_message
         fit_res = serde.fit_res_from_proto(client_msg.fit_res)
         return fit_res
+    
+    def get_pk(
+        self,
+        context,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        get_pk_ins_msg = serde.get_pk_ins_to_proto(context)
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(get_pk_ins=get_pk_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        get_pk_res = serde.get_pk_res_from_proto(client_msg.get_pk_res)
+        return get_pk_res
+    
+    def send_pk(
+        self,
+        ctx,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        send_pk_ins_msg = serde.send_pk_ins_to_proto(ctx)
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_pk_ins=send_pk_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        send_pk_res = serde.send_pk_res_from_proto(client_msg.send_pk_res)
+        return send_pk_res
+    
+    def get_parms(
+        self,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        get_parms_ins_msg = serde.get_parms_ins_to_proto()
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(get_parms_ins=get_parms_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        get_parms_res = serde.get_parms_res_from_proto(client_msg.get_parms_res)
+        return get_parms_res
+    
+    def send_enc(
+        self,
+        ctx,
+        enc,
+        n,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc,n=n)
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_enc_ins=send_enc_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        send_enc_res = serde.send_enc_res_from_proto(client_msg.send_enc_res)
+        return send_enc_res
+    
+    def send_enc(
+        self,
+        ctx,
+        enc,
+        n,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc,n=n)
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_enc_ins=send_enc_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        send_enc_res = serde.send_enc_res_from_proto(client_msg.send_enc_res)
+        return send_enc_res
+    
+    def send_enc(
+        self,
+        ctx,
+        enc,
+        n,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc,n=n)
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_enc_ins=send_enc_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        send_enc_res = serde.send_enc_res_from_proto(client_msg.send_enc_res)
+        return send_enc_res
+    
+    def send_ds(
+        self,
+        ctx,
+        enc,
+        n,
+        timeout: Optional[float],
+    ):
+        """Refine the provided parameters using the locally held dataset."""
+        send_ds_ins_msg = serde.send_ds_ins_to_proto(ctx, ds=enc,n=n)
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_ds_ins=send_ds_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        send_ds_res = serde.send_ds_res_from_proto(client_msg.send_ds_res)
+        return send_ds_res
+
+    def evaluate_enc(
+        self,
+        ins: common.EvaluateIns,
+        timeout: Optional[float],
+    ) -> common.EvaluateRes:
+        """Evaluate the provided parameters using the locally held dataset."""
+        evaluate_msg = serde.send_eval_ins_to_proto()
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_eval_ins=evaluate_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        evaluate_res = serde.send_eval_res_from_proto(client_msg.send_eval_res)
+        return evaluate_res
+    
+    def evaluate_last_enc(
+        self,
+        ins: common.EvaluateIns,
+        timeout: Optional[float],
+    ) -> common.EvaluateRes:
+        """Evaluate the provided parameters using the locally held dataset."""
+        evaluate_msg = serde.send_eval_last_ins_to_proto()
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_eval_last_ins=evaluate_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        evaluate_res = serde.send_eval_last_res_from_proto(client_msg.send_eval_res)
+        return evaluate_res
 
     def evaluate(
         self,
@@ -124,3 +291,15 @@ class GrpcClientProxy(ClientProxy):
         client_msg: ClientMessage = res_wrapper.client_message
         disconnect = serde.disconnect_res_from_proto(client_msg.disconnect_res)
         return disconnect
+    
+    def request(self, question: str, l: List[int]) -> Tuple[str, int]:
+        request_msg = serde.example_msg_to_proto(question, l)
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_sum_ins=request_msg),
+                timeout=10,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        response, answer = serde.example_res_from_proto(client_msg.send_val_res)
+        return response, answer

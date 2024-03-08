@@ -15,7 +15,7 @@
 """ProtoBuf serialization and deserialization."""
 
 
-from typing import Any, Dict, List, MutableMapping, cast
+from typing import Any, Dict, List, MutableMapping, cast, Tuple
 
 from flwr.proto.task_pb2 import Value
 from flwr.proto.transport_pb2 import (
@@ -29,6 +29,10 @@ from flwr.proto.transport_pb2 import (
 )
 
 from . import typing
+
+import sys
+sys.path.append('../../../../../TenSEAL')
+import tenseal as ts
 
 #  === ServerMessage message ===
 
@@ -58,6 +62,10 @@ def server_message_to_proto(server_message: typing.ServerMessage) -> ServerMessa
             evaluate_ins=evaluate_ins_to_proto(
                 server_message.evaluate_ins,
             )
+        )
+    if server_message.get_pk_ins is not None:
+        return ServerMessage(
+            get_pk_ins=server_message.get_pk_ins_to_proto()
         )
     raise Exception("No instruction set in ServerMessage, cannot serialize to ProtoBuf")
 
@@ -95,6 +103,29 @@ def server_message_from_proto(
         "Unsupported instruction in ServerMessage, cannot deserialize from ProtoBuf"
     )
 
+def sum_to_proto(status: str, sum: List[int]) -> ServerMessage.SendSumIns:
+    """Serialize `SendSum` to ProtoBuf."""
+    return ServerMessage.SendSumIns(status=status, sum=sum)
+
+def sum_from_proto(msg: ServerMessage.SendSumIns):
+    """Deserialize `SendSum` from ProtoBuf."""
+    return msg.status, msg.sum
+
+def example_msg_to_proto(question: str, l: List[int]) -> ServerMessage.SendSumIns:
+    return ServerMessage.SendSumIns(status=question, sum=l)
+
+
+def example_msg_from_proto(msg: ServerMessage.SendSumIns) -> Tuple[str, List[int]]:
+    return msg.status, msg.sum
+
+
+def example_res_to_proto(response: str, answer: int) -> ClientMessage.SendValRes:
+    print(f"response: {type(response)}, answer: {type(answer)}")
+    return ClientMessage.SendValRes(status=response, val=answer)
+
+
+def example_res_from_proto(res: ClientMessage.SendValRes) -> Tuple[str, int]:
+    return res.status, res.val
 
 #  === ClientMessage message ===
 
@@ -160,6 +191,14 @@ def client_message_from_proto(
     raise Exception(
         "Unsupported instruction in ClientMessage, cannot deserialize from ProtoBuf"
     )
+
+def val_to_proto(status: str, val: List[int]) -> ClientMessage.SendValRes:
+    """Serialize `SendVal` to ProtoBuf."""
+    return ServerMessage.SendValRes(status=status, val=val)
+
+def val_from_proto(msg:ClientMessage.SendValRes):
+    """Deserialize `SendValRes` from ProtoBuf."""
+    return msg.status, msg.val
 
 
 #  === Parameters message ===
@@ -302,6 +341,180 @@ def fit_res_from_proto(msg: ClientMessage.FitRes) -> typing.FitRes:
         metrics=metrics,
     )
 
+# === GetPK/SendPK messages ===
+
+#send server's pk
+def get_pk_ins_to_proto(ctx) -> ServerMessage.GetPKIns:
+    """Serialize `GetPKIns` to ProtoBuf."""
+    ctx_proto = ctx.serialize()
+    return ServerMessage.GetPKIns(ctx = ctx_proto)
+
+def get_pk_ins_from_proto(msg: ServerMessage.GetPKIns) -> typing.GetPKIns:
+    """Deserialize `GetPKIns` from ProtoBuf."""
+    ctx = ts.context_from(msg.ctx)
+    return  ctx.public_key() #TODO check
+
+#send each individual pk
+def get_pk_res_to_proto(ctx) -> ClientMessage.GetPKRes:
+    """Serialize `GetPKIns` to ProtoBuf."""
+    ctx_proto = ctx.serialize()
+    pk = ctx.public_key()
+    pk_ckks_proto = ts.ckks_vector(ctx,pk).serialize()
+    return ClientMessage.GetPKRes(ctx=ctx_proto)
+
+
+def get_pk_res_from_proto(msg: ClientMessage.GetPKRes) :
+    """Deserialize `GetPKRes` from ProtoBuf."""
+    ctx = ts.context_from(msg.ctx)
+    pk = ts.ckks_vector(ctx, ctx.public_key())
+    return pk
+
+#send aggregated pk
+def send_pk_ins_to_proto(ctx) -> ServerMessage.SendPKIns:
+    """Serialize `SendPKIns` to ProtoBuf."""
+    ctx_proto = ctx.serialize()
+    pk = ctx.public_key()
+    pk_ckks_proto = ts.ckks_vector(ctx,pk).serialize()
+    return ServerMessage.SendPKIns(ctx=ctx_proto)
+
+
+def send_pk_ins_from_proto(msg: ServerMessage.SendPKIns) -> typing.SendPKIns:
+    """Deserialize `SendPKIns` from ProtoBuf."""
+    ctx = ts.context_from(msg.ctx)
+    pk = ts.ckks_vector(ctx,ctx.public_key())
+    return pk
+
+#send "ok" or "ko"
+def send_pk_res_to_proto(status) -> ClientMessage.SendPKRes:
+    """Serialize `SendPKIns` to ProtoBuf."""
+    return ClientMessage.SendPKRes(status=status)
+
+
+def send_pk_res_from_proto(msg: ClientMessage.SendPKRes) -> typing.SendPKRes:
+    """Deserialize `SendPKRes` from ProtoBuf."""
+    return msg.status
+
+# === GetParms messages ===
+#send request
+def get_parms_ins_to_proto() -> ServerMessage.GetParmsIns:
+    """Serialize `GetParmsIns` to ProtoBuf."""
+    return ServerMessage.GetParmsIns()
+
+def get_parms_ins_from_proto(msg: ServerMessage.GetParmsIns):
+    """Deserialize `GetParmsIns` from ProtoBuf."""
+    
+    return #TODO check
+
+#send initial parameters
+def get_parms_res_to_proto(ctx,parms) -> ClientMessage.GetParmsRes:
+    """Serialize `GetParmsIns` to ProtoBuf."""
+    ctx_proto = ctx.serialize()
+    parms_proto = parms.serialize()
+    return ClientMessage.GetParmsRes(ctx=ctx_proto, parms=parms_proto)
+
+def get_parms_res_from_proto(msg: ClientMessage.GetParmsRes) :        
+    """Deserialize `GetParmsRes` from ProtoBuf."""
+    ctx = ts.context_from(msg.ctx)
+    parms = ts.ckks_vector_from(ctx, msg.parms)
+    return parms
+
+
+# === SendEnc messages ===
+#send encrypted vector
+def send_enc_ins_to_proto(ctx,enc,n):
+    ctx_proto = ctx.serialize()
+    enc_proto = enc.serialize()
+    return ServerMessage.SendEncIns(ctx=ctx_proto, enc = enc_proto,n=n)
+
+def send_enc_ins_from_proto(msg : ServerMessage.SendEncIns):
+    ctx = ts.context_from(msg.ctx)
+    enc = ts.ckks_vector_from(ctx, msg.enc)
+    return enc, msg.n
+
+#send each individual decryption share
+def send_enc_res_to_proto(ctx,ds):
+    ctx_proto = ctx.serialize()
+    ds_proto = ts.PlaintextVector(ds).serialize()
+    return ClientMessage.SendEncRes(ctx=ctx_proto, ds = ds_proto)
+
+def send_enc_res_from_proto(msg: ClientMessage.SendEncRes):
+    ctx = ts.context_from(msg.ctx)
+    ds = ts.plaintext_vector_from(ctx,msg.ds)
+    return ds.data.plaintext()
+
+# === SendDS messages ===
+#send aggregated decryption share
+def send_ds_ins_to_proto(ctx, ds,n):
+    ctx_proto = ctx.serialize()
+    ds_proto = ds.serialize()
+    return ServerMessage.SendDSIns(ctx = ctx_proto, ds = ds_proto,n=n)
+
+def send_ds_ins_from_proto(msg:ServerMessage.SendDSIns):
+    ctx = ts.context_from(msg.ctx)
+    ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
+    return ds, msg.n
+
+#send new parameters
+def send_ds_res_to_proto(ctx, enc):
+    ctx_proto = ctx.serialize()
+    enc_proto = enc.serialize()
+    return ClientMessage.SendDSRes(ctx = ctx_proto, enc = enc_proto)
+
+def send_ds_res_from_proto(msg:ClientMessage.SendDSRes):
+    ctx = ts.context_from(msg.ctx)
+    enc = ts.ckks_vector_from(ctx, msg.enc)
+    return enc
+
+# === SendEval messages ===
+#send evaluation request
+def send_eval_ins_to_proto():
+    return ServerMessage.SendEvalIns()
+
+def send_eval_ins_from_proto(msg:ServerMessage.SendEvalIns):
+    
+    return 
+
+#send evaluation results
+def send_eval_res_to_proto(acc,n, loss):
+    metrics_msg = None if acc is None else metrics_to_proto(acc)
+    return ClientMessage.SendEvalRes(loss=loss, num_examples= n, metrics = metrics_msg)
+
+def send_eval_res_from_proto(msg:ClientMessage.SendEvalRes):
+    metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
+    return typing.EvaluateRes(
+        status=None,
+        loss=msg.loss,
+        num_examples=msg.num_examples,
+        metrics=metrics,
+    )
+    #return msg.loss, msg.num_examples, metrics
+
+# === SendEvalLast messages ===
+#send aggregated decryption share
+def send_eval_last_ins_to_proto(ctx, ds,n):
+    ctx_proto = ctx.serialize()
+    ds_proto = ds.serialize()
+    return ServerMessage.SendEvalLastIns(ctx = ctx_proto, ds = ds_proto,n=n)
+
+def send_eval_last_ins_from_proto(msg:ServerMessage.SendEvalLastIns):
+    ctx = ts.context_from(msg.ctx)
+    ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
+    return ds, msg.num_examples
+
+#send evaluation results
+def send_eval_last_res_to_proto(acc,n, loss):
+    metrics_msg = None if acc is None else metrics_to_proto(acc)
+    return ClientMessage.SendEvalLastRes(loss=loss, num_examples= n, metrics = metrics_msg)
+
+def send_eval_last_res_from_proto(msg:ClientMessage.SendEvalLastRes):
+    metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
+    return typing.EvaluateRes(
+        status=None,
+        loss=msg.loss,
+        num_examples=msg.num_examples,
+        metrics=metrics,
+    )
+    #return msg.loss, msg.num_examples, metrics
 
 # === GetProperties messages ===
 

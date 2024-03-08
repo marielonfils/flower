@@ -51,7 +51,7 @@ from flwr.server.fleet.grpc_bidi.grpc_server import (
 )
 from flwr.server.fleet.grpc_rere.fleet_servicer import FleetServicer
 from flwr.server.history import History
-from flwr.server.server import Server
+from flwr.server.server2 import Server
 from flwr.server.state import StateFactory
 from flwr.server.strategy import FedAvg, Strategy
 
@@ -78,6 +78,7 @@ class ServerConfig:
 def start_server(  # pylint: disable=too-many-arguments,too-many-locals
     *,
     server_address: str = ADDRESS_FLEET_API_GRPC_BIDI,
+    length: int,
     server: Optional[Server] = None,
     config: Optional[ServerConfig] = None,
     strategy: Optional[Strategy] = None,
@@ -184,6 +185,7 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
     hist = run_fl(
         server=initialized_server,
         config=initialized_config,
+        length=length,
     )
 
     # Stop the gRPC server
@@ -220,9 +222,10 @@ def init_defaults(
 def run_fl(
     server: Server,
     config: ServerConfig,
+    length: int,
 ) -> History:
     """Train a model on the given server and return the History object."""
-    hist = server.fit(num_rounds=config.num_rounds, timeout=config.round_timeout)
+    hist = server.fit(num_rounds=config.num_rounds, timeout=config.round_timeout,length=length)
     log(INFO, "app_fit: losses_distributed %s", str(hist.losses_distributed))
     log(INFO, "app_fit: metrics_distributed_fit %s", str(hist.metrics_distributed_fit))
     log(INFO, "app_fit: metrics_distributed %s", str(hist.metrics_distributed))

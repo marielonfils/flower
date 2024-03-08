@@ -20,7 +20,9 @@ from typing import Optional, Tuple
 from flwr.client.client import (
     Client,
     maybe_call_evaluate,
+    maybe_call_evaluate_enc,
     maybe_call_fit,
+    maybe_call_fit_enc,
     maybe_call_get_parameters,
     maybe_call_get_properties,
 )
@@ -31,9 +33,14 @@ from flwr.client.message_handler.task_handler import (
 from flwr.client.run_state import RunState
 from flwr.client.secure_aggregation import SecureAggregationHandler
 from flwr.client.typing import ClientFn
-from flwr.common import serde
+from flwr.common import serde, typing
 from flwr.proto.task_pb2 import SecureAggregation, Task, TaskIns, TaskRes
 from flwr.proto.transport_pb2 import ClientMessage, Reason, ServerMessage
+
+import sys
+sys.path.append('../../../../../../TenSEAL')
+import tenseal as ts
+import numpy as np
 
 
 class UnexpectedServerMessage(Exception):
@@ -124,6 +131,12 @@ def handle(
     task_res = wrap_client_message_in_task_res(client_msg)
     return task_res, updated_state
 
+def _example_response(client: Client, msg: ServerMessage.SendSumIns) -> ClientMessage:
+    question,l = serde.example_msg_from_proto(msg)
+    response, answer = client.example_response(question,l)
+    example_res = serde.example_res_to_proto(response,answer)
+    return ClientMessage(send_val_res=example_res)
+
 
 def handle_legacy_message(
     client_fn: ClientFn, state: RunState, server_msg: ServerMessage
@@ -163,6 +176,50 @@ def handle_legacy_message(
         message = _fit(client, server_msg.fit_ins)
     if field == "evaluate_ins":
         message = _evaluate(client, server_msg.evaluate_ins)
+    if field == "send_eval_ins":
+        message = _evaluate_enc(client, server_msg.evaluate_ins)
+    if field == "send_eval_last_ins":
+        message = _evaluate_last_enc(client, server_msg.evaluate_ins)
+    if field == "get_pk_ins":
+        message = _get_pk(client, server_msg.get_pk_ins)
+    if field == "get_parms_ins":
+        message = _get_parms(client, server_msg.get_parms_ins)
+    if field == "send_pk_ins":
+        message = _set_pk(client, server_msg.send_pk_ins)
+    if field == "send_enc_ins":
+        message = _get_ds(client, server_msg.send_enc_ins)
+    if field == "send_ds_ins":
+        message = _fit_enc(client, server_msg.send_ds_ins)
+    if server_msg.HasField("send_sum_ins"):
+        return _example_response(client, server_msg.send_sum_ins), client.get_state()
+    if message:
+        return message, client.get_state()
+    raise UnknownServerMessage()
+
+def handle_sum(client: Client, server_msg: ServerMessage):
+    field = server_msg.WhichOneof("msg")
+    if field == "get_properties_ins":
+        message = _get_properties(client, server_msg.get_properties_ins)
+    if field == "get_parameters_ins":
+        message = _get_parameters(client, server_msg.get_parameters_ins)
+    if field == "fit_ins":
+        message = _fit(client, server_msg.fit_ins)
+    if field == "evaluate_ins":
+        message = _evaluate(client, server_msg.evaluate_ins)
+    if server_msg.HasField("send_sum_ins"):
+        status, sum = serde.sum_from_proto(server_msg.send_sum_ins)
+        if status == "pk":
+            client.set_pk(sum) #todo 
+        if status == "c0":
+            client.set_c0_sum(sum)
+            c1_res = serde.val_to_proto("c1",client.get_c1())
+            return ClientMessage(send_val_res =c1_res), client.get_state()
+        if status == "c1":
+            ds= client.get_ds() #ds
+            return ClientMessage(send_val_res=serde.send_val("ds",ds))
+        if status == "ds":
+            client.add_ds(sum)
+
     if message:
         return message, client.get_state()
     raise UnknownServerMessage()
@@ -219,7 +276,6 @@ def _get_parameters(
 def _fit(client: Client, fit_msg: ServerMessage.FitIns) -> ClientMessage:
     # Deserialize fit instruction
     fit_ins = serde.fit_ins_from_proto(fit_msg)
-
     # Perform fit
     fit_res = maybe_call_fit(
         client=client,
@@ -244,3 +300,124 @@ def _evaluate(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> Client
     # Serialize evaluate result
     evaluate_res_proto = serde.evaluate_res_to_proto(evaluate_res)
     return ClientMessage(evaluate_res=evaluate_res_proto)
+
+def _get_pk(client: Client, get_pk_msg: ServerMessage.GetPKIns) -> ClientMessage:
+    print("############# GET PK ##############")
+    #Perform set_pk
+    pk_server = serde.get_pk_ins_from_proto(get_pk_msg)
+    client.numpy_client.set_context(8192,[60,40,40,60],2**40,pk_server)
+    
+    # Perform get_pk
+    ctx = client.numpy_client.get_context()
+    pk = ctx.public_key()
+    get_pk_res = serde.get_pk_res_to_proto(ctx)
+    return ClientMessage(get_pk_res=get_pk_res)
+
+def _set_pk(client: Client, send_pk_msg: ServerMessage.SendPKIns) -> ClientMessage:
+    print("############# SET PK ##############")
+    # Deserialize send_pk instruction
+    send_pk_ins = serde.send_pk_ins_from_proto(send_pk_msg)
+
+    # Perform send_pk
+    client.numpy_client.set_pk(send_pk_ins)
+
+    # Serialize send_pk result
+    send_pk_res_proto = serde.send_pk_res_to_proto("ok")
+    #TODO not ok
+    return ClientMessage(send_pk_res=send_pk_res_proto)
+
+def _get_parms(client: Client, get_parms_msg: ServerMessage.GetParmsIns) -> ClientMessage:
+    print("############# GET PARMS ##############")
+    # Deserialize get_parms instruction
+    get_parms_ins = serde.get_parms_ins_from_proto(get_parms_msg)
+
+    # Perform get_parms
+    ctx,parms = client.numpy_client.get_parms_enc()
+    # Serialize send_pk result
+    get_parms_res_proto = serde.get_parms_res_to_proto(ctx=ctx,parms=parms)
+    #TODO not ok
+    return ClientMessage(get_parms_res=get_parms_res_proto)
+
+def _get_ds(client: Client, get_ds_msg: ServerMessage.SendEncIns) -> ClientMessage:
+    print("############# GET DS ##############")
+    #Deserialize get_ds instruction
+    enc,n = serde.send_enc_ins_from_proto(get_ds_msg)
+
+    #Perform get_ds
+    ctx,ds = client.numpy_client.get_decryption_share(enc)
+
+    #Serialize get_ds result
+    get_ds_res_proto = serde.send_enc_res_to_proto(ctx,ds)
+    return ClientMessage(send_enc_res=get_ds_res_proto)
+
+def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMessage:
+    print("############# FIT ENC ##############")
+    # Deserialize send_enc instruction
+    ds,n = serde.send_ds_ins_from_proto(send_ds_msg)
+    #if client.numpy_client.get_n() != n:
+    #    raise RuntimeError("The number of decryption shares is not correct")
+    print("----- decrypting parameters -----")
+    #Decrypt parameters
+    parms = ds#client.numpy_client.decrypt(ds)
+    for i in range(len(parms)):
+        parms[i] = parms[i]/n 
+
+    client.numpy_client.set_parms(parms,n)
+
+    # Perform fit
+    print("----- fitting -----")
+    parameters,length,loss = maybe_call_fit_enc(        
+        client=client,        
+        enc=parms,  
+        n=n  
+    )
+
+    #Encrypt parameters
+    print("----- encrypting parameters -----")
+    #ctx,enc_new = client.numpy_client.encrypt(np.array(parameters,dtype=object).flatten())
+    ctx, enc_new = client.numpy_client.get_parms_enc()
+    # Serialize fit result
+    fit_res_proto = serde.send_ds_res_to_proto(ctx,enc_new)
+    return ClientMessage(send_ds_res=fit_res_proto)
+
+def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> ClientMessage:
+    # Deserialize evaluate instruction
+    evaluate_ins = serde.send_eval_ins_from_proto(evaluate_msg)
+
+    # Perform evaluation
+    evaluate_res = maybe_call_evaluate_enc(
+        client=client,
+        evaluate_ins=None
+    )
+    loss,n,acc = evaluate_res
+
+    # Serialize evaluate result
+    evaluate_res_proto = serde.send_eval_res_to_proto(acc=acc,n=n,loss=loss)
+    return ClientMessage(send_eval_res=evaluate_res_proto)
+
+def _evaluate_last_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> ClientMessage:
+    
+    print("############# EVAL LAST ENC ##############")
+    # Deserialize send_enc instruction
+    ds,n = serde.send_eval_last_ins_from_proto(evaluate_msg)
+    #if client.numpy_client.get_n() != n:
+    #    raise RuntimeError("The number of decryption shares is not correct")
+    print("----- decrypting parameters -----")
+    #Decrypt parameters
+    parms = ds#client.numpy_client.decrypt(ds)
+    for i in range(len(parms)):
+        parms[i] = parms[i]/n 
+
+    client.numpy_client.set_parms(parms,n)
+    
+
+    # Perform evaluation
+    evaluate_res = maybe_call_evaluate_enc(
+        client=client,
+        evaluate_ins=None
+    )
+    loss,n,acc = evaluate_res
+
+    # Serialize evaluate result
+    evaluate_res_proto = serde.send_eval_last_res_to_proto(acc=acc,n=n,loss=loss)
+    return ClientMessage(send_eval_last_res=evaluate_res_proto)

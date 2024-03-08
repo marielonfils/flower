@@ -16,7 +16,7 @@
 
 
 from abc import ABC
-from typing import Callable, Dict, Tuple
+from typing import Callable, Dict, Tuple, List
 
 from flwr.client.client import Client
 from flwr.client.run_state import RunState
@@ -26,6 +26,7 @@ from flwr.common import (
     Scalar,
     ndarrays_to_parameters,
     parameters_to_ndarrays,
+    serde,
 )
 from flwr.common.typing import (
     Code,
@@ -39,6 +40,7 @@ from flwr.common.typing import (
     GetPropertiesRes,
     Status,
 )
+from flwr.proto.transport_pb2 import ClientMessage, ServerMessage
 
 EXCEPTION_MESSAGE_WRONG_RETURN_TYPE_FIT = """
 NumPyClient.fit did not return a tuple with 3 elements.
@@ -138,8 +140,72 @@ class NumPyClient(ABC):
         """
         _ = (self, parameters, config)
         return [], 0, {}
+    
+    def fit_enc(
+        self, parameters: NDArrays, config: Dict[str, Scalar], flat=False
+    ) -> Tuple[NDArrays, int, Dict[str, Scalar]]:
+        """Train the provided parameters using the locally held dataset.
+
+        Parameters
+        ----------
+        parameters : NDArrays
+            The current (global) model parameters.
+        config : Dict[str, Scalar]
+            Configuration parameters which allow the
+            server to influence training on the client. It can be used to
+            communicate arbitrary values from the server to the client, for
+            example, to set the number of (local) training epochs.
+
+        Returns
+        -------
+        parameters : NDArrays
+            The locally updated model parameters.
+        num_examples : int
+            The number of examples used for training.
+        metrics : Dict[str, Scalar]
+            A dictionary mapping arbitrary string keys to values of type
+            bool, bytes, float, int, or str. It can be used to communicate
+            arbitrary values back to the server.
+        """
+        _ = (self, parameters, config)
+        return [], 0, {}
 
     def evaluate(
+        self, parameters: NDArrays, config: Dict[str, Scalar]
+    ) -> Tuple[float, int, Dict[str, Scalar]]:
+        """Evaluate the provided parameters using the locally held dataset.
+
+        Parameters
+        ----------
+        parameters : NDArrays
+            The current (global) model parameters.
+        config : Dict[str, Scalar]
+            Configuration parameters which allow the server to influence
+            evaluation on the client. It can be used to communicate
+            arbitrary values from the server to the client, for example,
+            to influence the number of examples used for evaluation.
+
+        Returns
+        -------
+        loss : float
+            The evaluation loss of the model on the local dataset.
+        num_examples : int
+            The number of examples used for evaluation.
+        metrics : Dict[str, Scalar]
+            A dictionary mapping arbitrary string keys to values of
+            type bool, bytes, float, int, or str. It can be used to
+            communicate arbitrary values back to the server.
+
+        Warning
+        -------
+        The previous return type format (int, float, float) and the
+        extended format (int, float, float, Dict[str, Scalar]) have been
+        deprecated and removed since Flower 0.19.
+        """
+        _ = (self, parameters, config)
+        return 0.0, 0, {}
+    
+    def evaluate_enc(
         self, parameters: NDArrays, config: Dict[str, Scalar]
     ) -> Tuple[float, int, Dict[str, Scalar]]:
         """Evaluate the provided parameters using the locally held dataset.
@@ -185,6 +251,20 @@ class NumPyClient(ABC):
     def to_client(self) -> Client:
         """Convert to object to Client type and return it."""
         return _wrap_numpy_client(client=self)
+    
+    def requestSum(self, status: str, val: List[int]) -> Tuple[str, int]:
+        """Request sum of list of val from server."""
+        request_msg = serde.val_to_proto(status,val)
+        response_msg : ServerMessage = self.bridge.request(
+            ClientMessage(val=request_msg)
+        )
+        status, sum = serde.sum_from_proto(response_msg.sum)
+        return status, sum
+    
+    def example_response(self, question: str, l: List[int]) -> Tuple[str, int]:
+        response = "Here you go Alice!"
+        answer = sum(l)
+        return response, answer
 
 
 def has_get_properties(client: NumPyClient) -> bool:
@@ -201,10 +281,21 @@ def has_fit(client: NumPyClient) -> bool:
     """Check if NumPyClient implements fit."""
     return type(client).fit != NumPyClient.fit
 
+def has_fit_enc(client: NumPyClient) -> bool:
+    """Check if NumPyClient implements fit."""
+    return type(client).fit_enc != NumPyClient.fit_enc
+
 
 def has_evaluate(client: NumPyClient) -> bool:
     """Check if NumPyClient implements evaluate."""
     return type(client).evaluate != NumPyClient.evaluate
+
+def has_evaluate_enc(client: NumPyClient) -> bool:
+    """Check if NumPyClient implements evaluate_enc."""
+    return type(client).evaluate_enc != NumPyClient.evaluate_enc
+
+def has_example_response(client: NumPyClient) -> bool:
+    return callable(getattr(client, "example_response", None))
 
 
 def _constructor(self: Client, numpy_client: NumPyClient) -> None:
@@ -254,6 +345,31 @@ def _fit(self: Client, ins: FitIns) -> FitRes:
         metrics=metrics,
     )
 
+def _fit_enc(self: Client, ins: FitIns,config=None,flat=False) -> FitRes:
+    """Refine the provided parameters using the locally held dataset."""
+    # Deconstruct FitIns
+    #parameters: NDArrays = _fitparameters_to_ndarrays(ins.parameters)
+
+    # Train
+    results = self.numpy_client.fit_enc(ins, config)  # type: ignore
+    if not (
+        len(results) == 3
+        and isinstance(results[0], list)
+        and isinstance(results[1], int)
+        and isinstance(results[2], dict)
+    ):
+        raise Exception(EXCEPTION_MESSAGE_WRONG_RETURN_TYPE_FIT)
+
+    # Return FitRes
+    parameters_prime, num_examples, metrics = results
+    #parameters_prime_proto = ndarrays_to_parameters(parameters_prime)
+    #return FitRes(
+    #    status=Status(code=Code.OK, message="Success"),
+    #    parameters=parameters_prime_proto,
+    #    num_examples=num_examples,
+    #    metrics=metrics,
+    #)
+    return parameters_prime ,num_examples, metrics
 
 def _evaluate(self: Client, ins: EvaluateIns) -> EvaluateRes:
     """Evaluate the provided parameters using the locally held dataset."""
@@ -276,6 +392,29 @@ def _evaluate(self: Client, ins: EvaluateIns) -> EvaluateRes:
         num_examples=num_examples,
         metrics=metrics,
     )
+
+def _evaluate_enc(self: Client, ins: EvaluateIns) -> EvaluateRes:
+    """Evaluate the provided parameters using the locally held dataset."""
+    #parameters: NDArrays = parameters_to_ndarrays(ins.parameters)
+
+    results = self.numpy_client.evaluate_enc(ins)  # type: ignore
+    if not (
+        len(results) == 3
+        and isinstance(results[0], float)
+        and isinstance(results[1], int)
+        and isinstance(results[2], dict)
+    ):
+        raise Exception(EXCEPTION_MESSAGE_WRONG_RETURN_TYPE_EVALUATE)
+
+    # Return EvaluateRes
+    loss, num_examples, metrics = results
+    #return EvaluateRes(
+    #    status=Status(code=Code.OK, message="Success"),
+    #    loss=loss,
+    #    num_examples=num_examples,
+    #    metrics=metrics,
+    #)
+    return loss, num_examples, metrics
 
 
 def _get_state(self: Client) -> RunState:
@@ -305,12 +444,24 @@ def _wrap_numpy_client(client: NumPyClient) -> Client:
 
     if has_fit(client=client):
         member_dict["fit"] = _fit
+    
+    if has_fit_enc(client=client):
+        member_dict["fit_enc"] = _fit_enc
 
     if has_evaluate(client=client):
         member_dict["evaluate"] = _evaluate
+    
+    if has_evaluate_enc(client=client):
+        member_dict["evaluate_enc"] = _evaluate_enc
+
+    if has_example_response(client=client):
+        member_dict["example_response"] = _example_response
 
     # Create wrapper class
     wrapper_class = type("NumPyClientWrapper", (Client,), member_dict)
 
     # Create and return an instance of the newly created class
     return wrapper_class(numpy_client=client)  # type: ignore
+
+def _example_response(self, question: str, l: List[int]) -> Tuple[str, int]:
+    return self.numpy_client.example_response(question, l)

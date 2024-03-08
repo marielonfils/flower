@@ -41,6 +41,23 @@ def aggregate(results: List[Tuple[NDArrays, int]]) -> NDArrays:
     ]
     return weights_prime
 
+def mean(results: List[Tuple[NDArrays, int]], aggregate_fn,init) -> NDArrays:
+    """Compute weighted average."""
+    # Calculate the total number of examples used during training
+    #num_examples_total = sum([num_examples for _, num_examples in results])
+
+    # Create a list of weights, each multiplied by the related number of examples
+    #weighted_weights = [
+    #    [layer for layer in weights] for weights, num_examples in results
+    #]
+    
+    #TODO remove reduce
+
+    sum = reduce(aggregate_fn, results,init)
+    # Compute average weights of each layer
+    
+    return sum
+
 
 def aggregate_inplace(results: List[Tuple[ClientProxy, FitRes]]) -> NDArrays:
     """Compute in-place weighted average."""
@@ -65,6 +82,18 @@ def aggregate_inplace(results: List[Tuple[ClientProxy, FitRes]]) -> NDArrays:
         params = [reduce(np.add, layer_updates) for layer_updates in zip(params, res)]
 
     return params
+
+def mean_inplace(results: List[Tuple[ClientProxy, FitRes]], aggregate_fn,init) -> NDArrays:
+    """Compute in-place NON weighted sum."""
+    # Get first result, then add up each other
+    #params = parameters_to_ndarrays(results[0][1].parameters)
+
+    sum = reduce(aggregate_fn,results,init)# [r[1] for r in results])
+    #TODO make it inplace
+    #for i, (_, fit_res) in enumerate(results[1:]):
+    #    res = parameters_to_ndarrays(fit_res.parameters)
+    #    params = [reduce(np.add, layer_updates) for layer_updates in zip(params, res)]
+    return sum#params
 
 
 def aggregate_median(results: List[Tuple[NDArrays, int]]) -> NDArrays:

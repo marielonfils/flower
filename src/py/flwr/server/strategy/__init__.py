@@ -35,6 +35,7 @@ from .fedyogi import FedYogi as FedYogi
 from .krum import Krum as Krum
 from .qfedavg import QFedAvg as QFedAvg
 from .strategy import Strategy as Strategy
+from .xmk_ckks import FedAvg as MKFedAvg
 
 __all__ = [
     "FaultTolerantFedAvg",
@@ -57,4 +58,5 @@ __all__ = [
     "DPFedAvgAdaptive",
     "DPFedAvgFixed",
     "Strategy",
+    "MKFedAvg"
 ]
