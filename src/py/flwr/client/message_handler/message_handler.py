@@ -335,7 +335,6 @@ def _get_parms(client: Client, get_parms_msg: ServerMessage.GetParmsIns) -> Clie
     ctx,parms = client.numpy_client.get_parms_enc()
     # Serialize send_pk result
     get_parms_res_proto = serde.get_parms_res_to_proto(ctx=ctx,parms=parms)
-    #TODO not ok
     return ClientMessage(get_parms_res=get_parms_res_proto)
 
 def _get_ds(client: Client, get_ds_msg: ServerMessage.SendEncIns) -> ClientMessage:
@@ -364,6 +363,16 @@ def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMess
 
     client.numpy_client.set_parms(parms,n)
 
+    #Perform test
+    print("----- evaluating -----")
+    evaluate_res = maybe_call_evaluate_enc(
+        client=client,
+        evaluate_ins=parms,
+        reshape = True
+        
+    )
+    l,n,acc = evaluate_res
+
     # Perform fit
     print("----- fitting -----")
     parameters,length,loss = maybe_call_fit_enc(        
@@ -377,7 +386,7 @@ def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMess
     #ctx,enc_new = client.numpy_client.encrypt(np.array(parameters,dtype=object).flatten())
     ctx, enc_new = client.numpy_client.get_parms_enc()
     # Serialize fit result
-    fit_res_proto = serde.send_ds_res_to_proto(ctx,enc_new)
+    fit_res_proto = serde.send_ds_res_to_proto(ctx,enc_new,l,n,acc)
     return ClientMessage(send_ds_res=fit_res_proto)
 
 def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> ClientMessage:

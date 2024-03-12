@@ -188,6 +188,9 @@ message ClientMessage {
   message SendDSRes{
     bytes ctx = 1;
     bytes enc = 2;
+    float loss = 3;
+    int64 num_examples = 4;
+    map<string, Scalar> metrics = 5;
   }
 
   message SendEvalRes{

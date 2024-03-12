@@ -308,6 +308,49 @@ class FedAvg(Strategy):
             elif server_round == 1:  # Only log this warning once
                 log(WARNING, "No fit_metrics_aggregation_fn provided")
 
+        return parameters_aggregated, metrics_aggregated    
+
+    def aggregate_fit_enc(
+        self,
+        server_round: int,
+        results: List[Tuple[ClientProxy, FitRes]],
+        aggregate_fn ,#TODO
+        init, #TODO
+        failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
+        metrics : Optional[bool]=False
+    ) -> Tuple[Optional[Parameters], Dict[str, Scalar]]:
+        """Aggregate fit results using weighted average."""
+        if len(results)==0:#not results:
+            return None, {}
+        # Do not aggregate if there are failures and failures are not accepted
+        if not self.accept_failures and len(failures)>0:#not self.accept_failures and failures:
+            return None, {}
+        
+        #res = [r[0] for r in results]
+        init2=init[0]
+        if self.inplace:
+            # Does in-place weighted average of results
+            aggregated_ndarrays = mean_inplace(results, aggregate_fn=aggregate_fn,init=init2)
+        else:
+            # Convert results
+            #weights_results = [
+            #    (parameters_to_ndarrays(fit_res.parameters), fit_res.num_examples)
+            #    for _, fit_res in results
+            #]
+            #TODO check for fusion
+            aggregated_ndarrays = mean(results, aggregate_fn,init=init2)
+
+        parameters_aggregated = aggregated_ndarrays#ndarrays_to_parameters(aggregated_ndarrays)
+
+        # Aggregate custom metrics if aggregation fn was provided
+        metrics_aggregated = {}
+        if self.fit_metrics_aggregation_fn:
+            fit_metrics = [(res[1].num_examples, res[1].metrics) for _, res in results]
+            fit_metrics.append((init[1].num_examples, init[1].metrics))
+            metrics_aggregated = self.fit_metrics_aggregation_fn(fit_metrics)
+        elif server_round == 1:  # Only log this warning once
+            log(WARNING, "No fit_metrics_aggregation_fn provided")
+
         return parameters_aggregated, metrics_aggregated
     
     def aggregate_fit(

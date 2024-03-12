@@ -708,17 +708,45 @@ class ClientMessage(google.protobuf.message.Message):
     class SendDSRes(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
+        @typing_extensions.final
+        class MetricsEntry(google.protobuf.message.Message):
+            DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+            KEY_FIELD_NUMBER: builtins.int
+            VALUE_FIELD_NUMBER: builtins.int
+            key: builtins.str
+            @property
+            def value(self) -> global___Scalar: ...
+            def __init__(
+                self,
+                *,
+                key: builtins.str = ...,
+                value: global___Scalar | None = ...,
+            ) -> None: ...
+            def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+            def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
         CTX_FIELD_NUMBER: builtins.int
         ENC_FIELD_NUMBER: builtins.int
+        LOSS_FIELD_NUMBER: builtins.int
+        NUM_EXAMPLES_FIELD_NUMBER: builtins.int
+        METRICS_FIELD_NUMBER: builtins.int
         ctx: builtins.bytes
         enc: builtins.bytes
+        loss: builtins.float
+        num_examples: builtins.int
+        @property
+        def metrics(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___Scalar]: ...
         def __init__(
             self,
             *,
             ctx: builtins.bytes = ...,
             enc: builtins.bytes = ...,
+            loss: builtins.float = ...,
+            num_examples: builtins.int = ...,
+            metrics: collections.abc.Mapping[builtins.str, global___Scalar] | None = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "enc", b"enc"]) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "enc", b"enc", "loss", b"loss", "metrics", b"metrics", "num_examples", b"num_examples"]) -> None: ...
 
     @typing_extensions.final
     class SendEvalRes(google.protobuf.message.Message):
