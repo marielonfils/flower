@@ -455,14 +455,22 @@ def send_ds_ins_from_proto(msg:ServerMessage.SendDSIns):
     return ds, msg.n
 
 #send new parameters
-def send_ds_res_to_proto(ctx, enc):
+def send_ds_res_to_proto(ctx, enc, loss=0, num_example=0, metrics={}):
     ctx_proto = ctx.serialize()
     enc_proto = enc.serialize()
-    return ClientMessage.SendDSRes(ctx = ctx_proto, enc = enc_proto)
+    metrics_msg = None if metrics is None else metrics_to_proto(metrics)
+    return ClientMessage.SendDSRes(ctx = ctx_proto, enc = enc_proto, loss=loss, num_examples=num_example, metrics = metrics_msg)
 
 def send_ds_res_from_proto(msg:ClientMessage.SendDSRes):
     ctx = ts.context_from(msg.ctx)
     enc = ts.ckks_vector_from(ctx, msg.enc)
+    metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
+    return enc, typing.EvaluateRes(
+        status=None,
+        loss=msg.loss,
+        num_examples=msg.num_examples,
+        metrics=metrics,
+    )
     return enc
 
 # === SendEval messages ===

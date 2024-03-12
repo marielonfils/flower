@@ -93,27 +93,29 @@ class Server:
         return self._client_manager
     
     def get_pk(self, timeout: Optional[float]):
-        #min_num_clients= self._client_manager.num_available()
         min_num_clients = self.strategy.min_available_clients
         #TODO check if all clients are available
         clients = self._client_manager.sample(min_num_clients,min_num_clients)
         get_pk_ins = self.context
-        pk=self.context.public_key()
         client_instructions= [(client, get_pk_ins) for client in clients]
+        # Get public keys from all clients
         results, failures = fn_clients(
             client_instructions=client_instructions,
             client_fn=get_pk_client,
             max_workers=self.max_workers,
             timeout=timeout,
         )
+        if len(failures)!=0 :
+            raise RuntimeError("Error while getting the public keys")
+        #Aggregate public keys
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
         ] = self.strategy.aggregate(0, results[1:], lambda x,y : x.add_pk(y[1]),results[0][1], failures)
         parameters_aggregated, metrics_aggregated = aggregated_result
-        if parameters_aggregated is None or len(failures)!=0:
+        if parameters_aggregated is None :
             raise RuntimeError("Error while aggregating public keys")
-        return parameters_aggregated, metrics_aggregated, (results, failures)
+        return parameters_aggregated, len(results)
     
     def set_pk(self, pk):
         self.context.data.set_publickey(ts._ts_cpp.PublicKey(pk.data.ciphertext()[0]))
@@ -121,10 +123,9 @@ class Server:
     
     def send_pk(self, ctx, timeout : Optional[float]):
 
-        min_num_clients = self.strategy.min_available_clients
-        
+        min_num_clients = self.strategy.min_available_clients        
         clients = self._client_manager.sample(min_num_clients,min_num_clients)
-        
+        #Send aggregated public key to all clients
         send_pk_ins = ctx
         client_instructions= [(client, send_pk_ins) for client in clients]
         results, failures = fn_clients(
@@ -133,6 +134,8 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
+        if len(failures)!=0:
+            raise RuntimeError("Error while sending the public key")
         for _, result in results:
             if result != "ok":
                 raise RuntimeError("Error while sending the aggregated public key")
@@ -143,7 +146,7 @@ class Server:
 
         min_num_clients = self.strategy.min_available_clients        
         clients = self._client_manager.sample(min_num_clients,min_num_clients)
-
+        # Get initial parameters from all clients
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_instructions=client_instructions,
@@ -151,8 +154,9 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
-        self.n = len(results)
-
+        if len(failures)!=0 or len(results)!=self.n:
+            raise RuntimeError("Error while getting initial parameters")
+        # Aggregate initial parameters
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
@@ -161,7 +165,7 @@ class Server:
         if parameters_aggregated is None or len(failures)!=0:
             raise RuntimeError("Error while getting initial parameters")
         parameters_aggregated= parameters_aggregated*[1/self.n for _ in range(self.length)]
-        return parameters_aggregated, len(clients)
+        return parameters_aggregated
 
     
     def fit_round_enc(
@@ -182,7 +186,6 @@ class Server:
             client_manager=self._client_manager, 
             clients = clients
         )
-
         if not client_instructions:
             log(INFO, "fit_round %s: no clients selected, cancel", server_round)
             return None
@@ -210,7 +213,7 @@ class Server:
             len(failures),
         )
 
-        if len(failures) != 0:
+        if len(failures) != 0 or len(results) != self.n:
             raise RuntimeError("Error while getting the decryption shares")
         
         # Aggregate decrypteion shares
@@ -261,16 +264,16 @@ class Server:
             len(results2),
             len(failures2),
         )
-        self.n = len(results2)
-
-        if len(failures2) != 0:
+        if len(failures2) != 0 or len(results2) != self.n:
             raise RuntimeError("Error while getting the new parameters")
-
+        #TODO change here for reputation
+        if len(results2) != self.n:
+            self.change_n(len(results2),timeout)
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
-        ] = self.strategy.aggregate(server_round, results2[1:], lambda x,y : x.add(y[1]),results2[0][1], failures2)
+        ] = self.strategy.aggregate_fit_enc(server_round, results2[1:], lambda x,y : x.add(y[1][0]),results2[0][1], failures2)
         
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
@@ -281,18 +284,20 @@ class Server:
     def fit(self, num_rounds: int, timeout: Optional[float],length) -> History:
         """Run federated averaging for a number of rounds."""
         history = History()
+        # distributed : weighted average of clients results with new parameters
+        # distributed_fit : weighted average of clients results with received parameters
+        # centralized : server result
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         print("#################SET PK#################")
-        pk_aggregated, metrics_aggregated, (results, failures) = self.get_pk(timeout=timeout) #TDO fix timeout
+        pk_aggregated,self.n = self.get_pk(timeout=timeout) #TODO fix timeout
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
         print("#################GET INITIAL PARAMETERS#################")
         self.length = length
-        self.parameters, n = self.get_initial_parameters_enc(timeout=timeout)
-        #TODO n
+        self.parameters = self.get_initial_parameters_enc(timeout=timeout)
         log(INFO, "Evaluating initial parameters")
         res = self.evaluate_round_enc(0,history,timeout) #self.strategy.evaluate(0, parameters=self.parameters)
         if res is not None :
@@ -302,9 +307,6 @@ class Server:
                 res[0],
                 res[1],
             )
-            history.add_loss_distributed(server_round=0, loss=res[0])
-            history.add_metrics_distributed(server_round=0, metrics=res[1])
-        self.example_request(self._client_manager.sample(1)[0])
 
         # Run federated learning for num_rounds
         log(INFO, "FL starting")
@@ -337,6 +339,19 @@ class Server:
         log(INFO, "FL finished in %s", elapsed)
         return history
     
+    def change_n(self,n,timeout):
+        self.n = n
+        log(INFO, "Initializing global parameters")
+        # Public Keys aggregation
+        print("#################SET PK#################")
+        pk_aggregated, metrics_aggregated, (results, failures) = self.get_pk(timeout=timeout) #TDO fix timeout
+        self.set_pk(pk_aggregated)
+        self.send_pk(self.context,timeout=timeout)
+        # Initialize parameters
+        print("#################GET INITIAL PARAMETERS#################")
+        self.parameters, n = self.get_initial_parameters_enc(timeout=timeout)
+
+    
     def eval_enc_last(
         self,
         server_round: int,
@@ -360,7 +375,7 @@ class Server:
             return None
         log(
             DEBUG,
-            "fit_round %s: strategy sampled %s clients (out of %s)",
+            "eval_enc_last %s: strategy sampled %s clients (out of %s)",
             server_round,
             len(client_instructions),
             self._client_manager.num_available(),
@@ -376,13 +391,13 @@ class Server:
         )
         log(
             DEBUG,
-            "fit_round %s received %s results and %s failures",
+            "eval_enc_last %s received %s results and %s failures",
             server_round,
             len(results),
             len(failures),
         )
 
-        if len(failures) != 0:
+        if len(failures) != 0 or len(results) != self.n:
             raise RuntimeError("Error while getting the decryption shares")
         
         # Aggregate decrypteion shares
@@ -397,61 +412,6 @@ class Server:
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
 
-        ##########
-
-        #Send aggregated parameters to all clients
-        #Collects the new parametes from all clients
-        client_instructions2 = self.strategy.configure_fit_enc(
-            (self.context,parameters_aggregated) ,
-            client_manager=self._client_manager,
-            clients = clients
-        )
-
-        if not client_instructions2:
-            log(INFO, "fit_round %s: no clients selected, cancel", server_round)
-            return None
-        log(
-            DEBUG,
-            "fit_round %s: strategy sampled %s clients (out of %s)",
-            server_round,
-            len(client_instructions2),
-            self._client_manager.num_available(),
-        )        
-
-        # Collect `evaluate` results from all clients participating in this round
-        results2, failures2 = fn_clients(
-            client_instructions,
-            send_eval_last,
-            max_workers=self.max_workers,
-            timeout=timeout,
-        )
-        log(
-            DEBUG,
-            "evaluate_round %s received %s results and %s failures",
-            server_round,
-            len(results),
-            len(failures),
-        )
-
-        # Aggregate the evaluation results
-        aggregated_result: Tuple[
-            Optional[float],
-            Dict[str, Scalar],
-        ] = self.strategy.aggregate_evaluate(server_round, results2, failures2)
-
-        loss_aggregated, metrics_aggregated = aggregated_result
-        
-
-        if aggregated_result is not None:
-            loss_fed, evaluate_metrics_fed = aggregated_result
-            if loss_fed is not None:
-                history.add_loss_distributed(
-                    server_round=server_round, loss=loss_fed
-                )
-                history.add_metrics_distributed(
-                    server_round=server_round, metrics=evaluate_metrics_fed
-                )
-        return loss_aggregated, metrics_aggregated, (results, failures)
     
     def evaluate_enc(self,parameters,current_round, start_time, history):
         # Evaluate model using strategy implementation
@@ -462,7 +422,7 @@ class Server:
             loss_cen, metrics_cen = res_cen
             log(
                 INFO,
-                "fit progress: (%s, %s, %s, %s)",
+                "Evaluation progress: (%s, %s, %s, %s)",
                 current_round,
                 loss_cen,
                 metrics_cen,
@@ -507,6 +467,8 @@ class Server:
             len(results),
             len(failures),
         )
+
+
         # Aggregate the evaluation results
         aggregated_result: Tuple[
             Optional[float],

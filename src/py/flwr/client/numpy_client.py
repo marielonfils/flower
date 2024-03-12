@@ -393,11 +393,11 @@ def _evaluate(self: Client, ins: EvaluateIns) -> EvaluateRes:
         metrics=metrics,
     )
 
-def _evaluate_enc(self: Client, ins: EvaluateIns) -> EvaluateRes:
+def _evaluate_enc(self: Client, ins: EvaluateIns, reshape=False) -> EvaluateRes:
     """Evaluate the provided parameters using the locally held dataset."""
     #parameters: NDArrays = parameters_to_ndarrays(ins.parameters)
 
-    results = self.numpy_client.evaluate_enc(ins)  # type: ignore
+    results = self.numpy_client.evaluate_enc(ins,reshape)  # type: ignore
     if not (
         len(results) == 3
         and isinstance(results[0], float)

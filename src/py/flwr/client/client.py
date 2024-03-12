@@ -327,7 +327,7 @@ def maybe_call_evaluate(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRe
     # If the client implements `evaluate`, call it
     return client.evaluate(evaluate_ins)
 
-def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRes:
+def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns,reshape=False) -> EvaluateRes:
     """Call `evaluate` if the client overrides it."""
     # Check if client overrides `evaluate`
     if not has_evaluate_enc(client=client):
@@ -345,4 +345,4 @@ def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns) -> Evalua
         return None
 
     # If the client implements `evaluate`, call it
-    return client.evaluate_enc(None)
+    return client.evaluate_enc(evaluate_ins,reshape)
