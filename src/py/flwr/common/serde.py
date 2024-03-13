@@ -352,11 +352,11 @@ def get_pk_ins_to_proto(ctx) -> ServerMessage.GetPKIns:
 def get_pk_ins_from_proto(msg: ServerMessage.GetPKIns) -> typing.GetPKIns:
     """Deserialize `GetPKIns` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
-    return  ctx.public_key() #TODO check
+    return  ctx.public_key() 
 
 #send each individual pk
 def get_pk_res_to_proto(ctx) -> ClientMessage.GetPKRes:
-    """Serialize `GetPKIns` to ProtoBuf."""
+    """Serialize `GetPKRes` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     pk = ctx.public_key()
     pk_ckks_proto = ts.ckks_vector(ctx,pk).serialize()
@@ -386,7 +386,7 @@ def send_pk_ins_from_proto(msg: ServerMessage.SendPKIns) -> typing.SendPKIns:
 
 #send "ok" or "ko"
 def send_pk_res_to_proto(status) -> ClientMessage.SendPKRes:
-    """Serialize `SendPKIns` to ProtoBuf."""
+    """Serialize `SendPKRes` to ProtoBuf."""
     return ClientMessage.SendPKRes(status=status)
 
 
@@ -400,14 +400,12 @@ def get_parms_ins_to_proto() -> ServerMessage.GetParmsIns:
     """Serialize `GetParmsIns` to ProtoBuf."""
     return ServerMessage.GetParmsIns()
 
-def get_parms_ins_from_proto(msg: ServerMessage.GetParmsIns):
-    """Deserialize `GetParmsIns` from ProtoBuf."""
-    
-    return #TODO check
+def get_parms_ins_from_proto(msg: ServerMessage.GetParmsIns):    
+    return 
 
 #send initial parameters
 def get_parms_res_to_proto(ctx,parms) -> ClientMessage.GetParmsRes:
-    """Serialize `GetParmsIns` to ProtoBuf."""
+    """Serialize `GetParmsRes` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     parms_proto = parms.serialize()
     return ClientMessage.GetParmsRes(ctx=ctx_proto, parms=parms_proto)
@@ -422,22 +420,26 @@ def get_parms_res_from_proto(msg: ClientMessage.GetParmsRes) :
 # === SendEnc messages ===
 #send encrypted vector
 def send_enc_ins_to_proto(ctx,enc,n):
+    """Serialize `SendEncIns` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     enc_proto = enc.serialize()
     return ServerMessage.SendEncIns(ctx=ctx_proto, enc = enc_proto,n=n)
 
 def send_enc_ins_from_proto(msg : ServerMessage.SendEncIns):
+    """Deserialize `SendEncIns` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     enc = ts.ckks_vector_from(ctx, msg.enc)
     return enc, msg.n
 
 #send each individual decryption share
 def send_enc_res_to_proto(ctx,ds):
+    """Serialize `SendEncRes` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     ds_proto = ts.PlaintextVector(ds).serialize()
     return ClientMessage.SendEncRes(ctx=ctx_proto, ds = ds_proto)
 
 def send_enc_res_from_proto(msg: ClientMessage.SendEncRes):
+    """Deserialize `SendEncRes` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     ds = ts.plaintext_vector_from(ctx,msg.ds)
     return ds.data.plaintext()
@@ -445,23 +447,27 @@ def send_enc_res_from_proto(msg: ClientMessage.SendEncRes):
 # === SendDS messages ===
 #send aggregated decryption share
 def send_ds_ins_to_proto(ctx, ds,n):
+    """Serialize `SendDSIns` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     ds_proto = ds.serialize()
     return ServerMessage.SendDSIns(ctx = ctx_proto, ds = ds_proto,n=n)
 
 def send_ds_ins_from_proto(msg:ServerMessage.SendDSIns):
+    """Deserialize `SendDSIns` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
     return ds, msg.n
 
 #send new parameters
 def send_ds_res_to_proto(ctx, enc, loss=0, num_example=0, metrics={}):
+    """Serialize `SendDSRes` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     enc_proto = enc.serialize()
     metrics_msg = None if metrics is None else metrics_to_proto(metrics)
     return ClientMessage.SendDSRes(ctx = ctx_proto, enc = enc_proto, loss=loss, num_examples=num_example, metrics = metrics_msg)
 
 def send_ds_res_from_proto(msg:ClientMessage.SendDSRes):
+    """Deserialize `SendDSRes` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     enc = ts.ckks_vector_from(ctx, msg.enc)
     metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
@@ -471,23 +477,24 @@ def send_ds_res_from_proto(msg:ClientMessage.SendDSRes):
         num_examples=msg.num_examples,
         metrics=metrics,
     )
-    return enc
 
 # === SendEval messages ===
 #send evaluation request
 def send_eval_ins_to_proto():
+    """Serialize `SendEvalIns` to ProtoBuf."""
     return ServerMessage.SendEvalIns()
 
-def send_eval_ins_from_proto(msg:ServerMessage.SendEvalIns):
-    
+def send_eval_ins_from_proto(msg:ServerMessage.SendEvalIns):    
     return 
 
 #send evaluation results
 def send_eval_res_to_proto(acc,n, loss):
+    """Serialize `SendEvalRes` to ProtoBuf."""
     metrics_msg = None if acc is None else metrics_to_proto(acc)
     return ClientMessage.SendEvalRes(loss=loss, num_examples= n, metrics = metrics_msg)
 
 def send_eval_res_from_proto(msg:ClientMessage.SendEvalRes):
+    """Deserialize `SendEvalRes` from ProtoBuf."""
     metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
     return typing.EvaluateRes(
         status=None,
@@ -495,26 +502,29 @@ def send_eval_res_from_proto(msg:ClientMessage.SendEvalRes):
         num_examples=msg.num_examples,
         metrics=metrics,
     )
-    #return msg.loss, msg.num_examples, metrics
 
 # === SendEvalLast messages ===
 #send aggregated decryption share
 def send_eval_last_ins_to_proto(ctx, ds,n):
+    """Serialize `SendEvalLastIns` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     ds_proto = ds.serialize()
     return ServerMessage.SendEvalLastIns(ctx = ctx_proto, ds = ds_proto,n=n)
 
 def send_eval_last_ins_from_proto(msg:ServerMessage.SendEvalLastIns):
+    """Deserialize `SendEvalLastIns` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
     return ds, msg.num_examples
 
 #send evaluation results
 def send_eval_last_res_to_proto(acc,n, loss):
+    """Serialize `SendEvalLastRes` to ProtoBuf."""
     metrics_msg = None if acc is None else metrics_to_proto(acc)
     return ClientMessage.SendEvalLastRes(loss=loss, num_examples= n, metrics = metrics_msg)
 
 def send_eval_last_res_from_proto(msg:ClientMessage.SendEvalLastRes):
+    """Deserialize `SendEvalLastRes` from ProtoBuf."""
     metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
     return typing.EvaluateRes(
         status=None,
@@ -522,7 +532,6 @@ def send_eval_last_res_from_proto(msg:ClientMessage.SendEvalLastRes):
         num_examples=msg.num_examples,
         metrics=metrics,
     )
-    #return msg.loss, msg.num_examples, metrics
 
 # === GetProperties messages ===
 
@@ -581,7 +590,7 @@ def evaluate_ins_from_proto(msg: ServerMessage.EvaluateIns) -> typing.EvaluateIn
 
 
 def evaluate_res_to_proto(res: typing.EvaluateRes) -> ClientMessage.EvaluateRes:
-    """Serialize `EvaluateIns` to ProtoBuf."""
+    """Serialize `EvaluateRes` to ProtoBuf."""
     status_msg = status_to_proto(res.status)
     if res.status.code == typing.Code.EVALUATE_NOT_IMPLEMENTED:
         return ClientMessage.EvaluateRes(status=status_msg)

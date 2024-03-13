@@ -30,6 +30,7 @@ from flwr.common import (
     Parameters,
     ReconnectIns,
     Scalar,
+    serde,
 )
 from flwr.common.logger import log
 from flwr.common.typing import GetParametersIns
@@ -67,6 +68,7 @@ class Server:
         )
         self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.max_workers: Optional[int] = None
+        self.pk = None
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -81,7 +83,7 @@ class Server:
         return self._client_manager
 
     # pylint: disable=too-many-locals
-    def fit(self, num_rounds: int, timeout: Optional[float]) -> History:
+    def fit(self, num_rounds: int, timeout: Optional[float],length) -> History:
         """Run federated averaging for a number of rounds."""
         history = History()
 
@@ -99,11 +101,10 @@ class Server:
             )
             history.add_loss_centralized(server_round=0, loss=res[0])
             history.add_metrics_centralized(server_round=0, metrics=res[1])
-
+        self.example_request(self._client_manager.sample(1)[0])
         # Run federated learning for num_rounds
         log(INFO, "FL starting")
         start_time = timeit.default_timer()
-
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
             res_fit = self.fit_round(
@@ -279,6 +280,13 @@ class Server:
         get_parameters_res = random_client.get_parameters(ins=ins, timeout=timeout)
         log(INFO, "Received initial parameters from one random client")
         return get_parameters_res.parameters
+    
+    def example_request(self, client: ClientProxy) -> Tuple[str, int]:
+        print("server-example-request")
+        question = "Could you find the sum of the list, Bob?"
+        l = [1, 2, 3]
+        return client.request(question, l)
+    
 
 
 def reconnect_clients(
