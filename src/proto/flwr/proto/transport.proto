@@ -90,29 +90,6 @@ message SendSumIns{
   optional string status = 1;
   repeated int64 sum =2;
 }
-//message SendA{
-//  string status =1;
-//  repeated int64 a=2;
-//}
-//message ExampleIns {
-//  string question = 1;
-//  repeated int64 l = 2;
-//}
-//message SendVectorAIns {
-//  repeated int64 vector_a = 1;
-//}
-//message SendAllpubIns {
-//  repeated int64 aggregated_allpub = 1;
-//}
-//message RequestEncryptedIns {
-//  string request = 1;
-//}
-//message SendCsumIns {
-//  repeated int64 csum1 = 1;
-//}
-//message SendNewWeightsIns {
-//  repeated int64 new_weights = 1;
-//}
   oneof msg {
     ReconnectIns reconnect_ins = 1;
     GetPropertiesIns get_properties_ins = 2;
@@ -127,13 +104,6 @@ message SendSumIns{
     SendDSIns send_ds_ins = 11;
     SendEvalIns send_eval_ins = 12;
     SendEvalLastIns send_Eval_last_ins=13;
-    //SendA send_a_ins = 7;
-    //ExampleIns example_ins = 6;
-    //SendVectorAIns send_vector_a_ins = 7;
-    //SendAllpubIns send_allpub_ins = 8;
-    //RequestEncryptedIns request_encrypted_ins = 9;
-    //SendCsumIns send_csum_ins = 10;
-    //SendNewWeightsIns send_new_weights_ins = 11;
   }
 }
 
@@ -206,27 +176,6 @@ message ClientMessage {
     map<string, Scalar> metrics= 3;
 
   }
-  
-  //message ExampleRes{
-  //  string response = 1;
-  //  int64 answer = 2;
-  //}
-  //message SendVectorBRes {
-  //  repeated int64 vector_b = 1;
-  //}
-  //message SendAllpubRes {
-  //  bool pubkey_confirmed = 1;
-  //}
-  //message SendEncryptedRes {
-  //  repeated int64 c0 = 1;
-  //  repeated int64 c1 = 2;
-  //}
-  //message SendDecShareRes {
-  //  repeated int64 decryption_share = 1;
-  //}
-  //message SendNewWeightsRes {
-  //  bool weights_confirmed = 1;
-  //}
   oneof msg {
     DisconnectRes disconnect_res = 1;
     GetPropertiesRes get_properties_res = 2;
@@ -242,12 +191,6 @@ message ClientMessage {
     SendDSRes send_ds_res = 12;
     SendEvalRes send_eval_res = 13;
     SendEvalLastRes send_eval_last_res = 14;
-    //ExampleRes example_res = 6;
-    //SendVectorBRes send_vector_b_res = 7;
-    //SendAllpubRes send_allpub_res = 8;
-    //SendEncryptedRes send_encrypted_res = 9;
-    //SendDecShareRes send_dec_share_res = 10;
-    //SendNewWeightsRes send_new_weights_res = 11;
   }
 }
 
