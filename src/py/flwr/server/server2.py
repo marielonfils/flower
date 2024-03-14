@@ -92,8 +92,10 @@ class Server:
         """Return ClientManager."""
         return self._client_manager
     
-    def get_pk(self, timeout: Optional[float]):
+    def get_pk(self, timeout: Optional[float],n=None):
         min_num_clients = self.strategy.min_available_clients
+        if min_num_clients is None :#TODO check condition
+            min_num_clients = n
         #TODO check if all clients are available
         clients = self._client_manager.sample(min_num_clients,min_num_clients)
         get_pk_ins = self.context
@@ -141,11 +143,11 @@ class Server:
                 raise RuntimeError("Error while sending the aggregated public key")
         return
     
-    def get_initial_parameters_enc(self, timeout: Optional[float]) -> Parameters:
+    def get_initial_parameters_enc(self, timeout: Optional[float],clients=None) -> Parameters:
         """Get initial parameters from all of the available clients."""
-
-        min_num_clients = self.strategy.min_available_clients        
-        clients = self._client_manager.sample(min_num_clients,min_num_clients)
+        if clients is None:
+            min_num_clients = self.strategy.min_available_clients        
+            clients = self._client_manager.sample(min_num_clients,min_num_clients)
         # Get initial parameters from all clients
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
@@ -160,11 +162,11 @@ class Server:
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
-        ] = self.strategy.aggregate(0, results, lambda x,y : x.add(y[1]),results[0][1], failures)
+        ] = self.strategy.aggregate(0, results[1:], lambda x,y : x.add(y[1]),results[0][1], failures)
         parameters_aggregated, metrics_aggregated = aggregated_result
         if parameters_aggregated is None or len(failures)!=0:
             raise RuntimeError("Error while getting initial parameters")
-        parameters_aggregated= parameters_aggregated*[1/self.n for _ in range(self.length)]
+        parameters_aggregated= parameters_aggregated#*[1/self.n for _ in range(self.length)]
         return parameters_aggregated
 
     
@@ -212,7 +214,6 @@ class Server:
             len(results),
             len(failures),
         )
-
         if len(failures) != 0 or len(results) != self.n:
             raise RuntimeError("Error while getting the decryption shares")
         
@@ -222,15 +223,13 @@ class Server:
             Dict[str, Scalar],
         ] = self.strategy.aggregate(server_round, results, lambda x,y : x.add_share(y[1]),self.parameters,failures)
         
-
-        parameters_aggregated, metrics_aggregated = aggregated_ds[0], aggregated_ds[1]
-
+        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n), aggregated_ds[1]
+        
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
 
-
         #Send aggregated parameters to all clients
-        #Collects the new parametes from all clients
+        #Collects the new parameters from all clients
         client_instructions2 = self.strategy.configure_fit_enc(
             (self.context,parameters_aggregated) ,
             client_manager=self._client_manager,
@@ -344,12 +343,14 @@ class Server:
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         print("#################SET PK#################")
-        pk_aggregated, metrics_aggregated, (results, failures) = self.get_pk(timeout=timeout) #TDO fix timeout
+        pk_aggregated, n = self.get_pk(timeout=timeout,n=self.n) #TDO fix timeout
+        if n != self.n:
+            raise RuntimeError("Error while getting the public keys")
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
         print("#################GET INITIAL PARAMETERS#################")
-        self.parameters, n = self.get_initial_parameters_enc(timeout=timeout)
+        self.parameters = self.get_initial_parameters_enc(timeout=timeout)
 
     
     def eval_enc_last(
@@ -406,9 +407,7 @@ class Server:
             Dict[str, Scalar],
         ] = self.strategy.aggregate(server_round, results, lambda x,y : x.add_share(y[1]),self.parameters,failures)
         
-
-        parameters_aggregated, metrics_aggregated = aggregated_ds[0], aggregated_ds[1]
-
+        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n), aggregated_ds[1]
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
 
@@ -417,7 +416,7 @@ class Server:
         # Evaluate model using strategy implementation
         print("#################EVALUATE ENC#################",current_round)
         p=parameters.mk_decode() #TODO check division by n
-        res_cen = self.strategy.evaluate_enc(current_round, parameters=[x/self.n for x in p])
+        res_cen = self.strategy.evaluate_enc(current_round, parameters=p)#[x/self.n for x in p])
         if res_cen is not None:
             loss_cen, metrics_cen = res_cen
             log(
@@ -758,24 +757,16 @@ def send_enc(
 ) -> Tuple[ClientProxy, FitRes]:
     """Refine parameters on a single client."""
     
-    context,enc,n, = ins
-    fit_res = client.send_enc(context,enc,n, timeout=timeout)
+    context,enc = ins
+    fit_res = client.send_enc(context,enc, timeout=timeout)
     return client, fit_res
 
 def send_ds(
     client: ClientProxy, ins, timeout: Optional[float]
 ) -> Tuple[ClientProxy, FitRes]:
     """Refine parameters on a single client."""
-    context,enc,n = ins
-    fit_res = client.send_ds(context,enc,n, timeout=timeout)
-    return client, fit_res
-
-def send_eval_last(
-    client: ClientProxy, ins, timeout: Optional[float]
-) -> Tuple[ClientProxy, FitRes]:
-    """Refine parameters on a single client."""
-    context,enc,n = ins
-    fit_res = client.evaluate_last_enc(context,enc,n, timeout=timeout)
+    context,enc = ins
+    fit_res = client.send_ds(context,enc, timeout=timeout)
     return client, fit_res
 
 def _handle_finished_future_after_fit(

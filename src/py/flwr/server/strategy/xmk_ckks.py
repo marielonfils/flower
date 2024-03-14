@@ -183,7 +183,7 @@ class FedAvg(Strategy):
         return loss, metrics
 
     def configure_fit_enc(
-        self, ins, client_manager: ClientManager, clients
+        self, ins, client_manager: ClientManager, clients=None
     ) -> List[Tuple[ClientProxy, FitIns]]:
         """Configure the next round of training."""
         
@@ -195,9 +195,8 @@ class FedAvg(Strategy):
             clients = client_manager.sample(
                 num_clients=sample_size, min_num_clients=min_num_clients
             )
-        ins2=(*ins,len(clients))
         # Return client/config pairs
-        return [(client,ins2) for client in clients]
+        return [(client,ins) for client in clients]
     
     def configure_evaluate_enc(
         self, server_round: int, client_manager: ClientManager

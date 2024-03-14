@@ -68,22 +68,14 @@ message ServerMessage {
   message SendEncIns{
     bytes ctx = 1;
     bytes enc = 2;
-    int32 n = 3;
   }
 
   message SendDSIns{
     bytes ctx = 1;
     bytes ds = 2;
-    int32 n = 3;
   }
 
   message SendEvalIns{
-  }
-
-  message SendEvalLastIns{
-    bytes ctx = 1;
-    bytes ds = 2;
-    int32 n = 3;
   }
 
 message SendSumIns{
@@ -103,7 +95,6 @@ message SendSumIns{
     SendEncIns send_enc_ins = 10;
     SendDSIns send_ds_ins = 11;
     SendEvalIns send_eval_ins = 12;
-    SendEvalLastIns send_Eval_last_ins=13;
   }
 }
 
@@ -190,7 +181,6 @@ message ClientMessage {
     SendEncRes send_enc_res = 11;
     SendDSRes send_ds_res = 12;
     SendEvalRes send_eval_res = 13;
-    SendEvalLastRes send_eval_last_res = 14;
   }
 }
 
