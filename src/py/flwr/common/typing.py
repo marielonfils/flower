@@ -91,6 +91,20 @@ class GetParametersRes:
 
     status: Status
     parameters: Parameters
+    
+@dataclass
+class GetGradientsIns:
+    """Parameters request for a client."""
+
+    config: Config
+
+
+@dataclass
+class GetGradientsRes:
+    """Response when asked to return parameters."""
+
+    status: Status
+    gradients: Parameters
 
 @dataclass
 class GetPKIns:

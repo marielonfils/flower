@@ -167,7 +167,24 @@ class Server:
         parameters_aggregated= parameters_aggregated*[1/self.n for _ in range(self.length)]
         return parameters_aggregated
 
-    
+    def compute_reputation(self, server_round, timeout):
+        clients = self._client_manager.all().values()
+        client_instructions= [(client, None) for client in clients]
+        
+        results3, failures3 = fn_clients(
+            client_fn=get_gradients,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
+        log(
+            DEBUG,
+            "contribution %s received %s results and %s failures",
+            server_round,
+            len(results3),
+            len(failures3),
+        )
+        
     def fit_round_enc(
         self,
         server_round: int,
@@ -267,6 +284,12 @@ class Server:
         if len(failures2) != 0 or len(results2) != self.n:
             raise RuntimeError("Error while getting the new parameters")
         #TODO change here for reputation
+
+        self.compute_reputation(server_round, timeout)
+        
+        if len(failures2) != 0 or len(results2) != self.n:
+            raise RuntimeError("Error while getting the new parameters")
+            
         if len(results2) != self.n:
             self.change_n(len(results2),timeout)
         # Aggregate training results
@@ -706,7 +729,7 @@ def fn_clients(
     """Refine parameters concurrently on all selected clients."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         submitted_fs = {
-            executor.submit(client_fn, client_proxy,ins, timeout)
+            executor.submit(client_fn, client_proxy, ins, timeout)
             for client_proxy, ins in client_instructions
         }
         finished_fs, _ = concurrent.futures.wait(
@@ -813,6 +836,7 @@ def _handle_finished_future_after_fn(
     failure = future.exception()
     if failure is not None:
         failures.append(failure)
+        print(failure)
         return
 
     # Successfully received a result from a client
@@ -899,3 +923,12 @@ def _handle_finished_future_after_evaluate(
 
     # Not successful, client returned a result where the status code is not OK
     failures.append(result)
+    
+    
+def get_gradients(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    get_gradients_res = client.get_gradients(timeout=timeout)
+    return client, get_gradients_res
+    
+    

@@ -124,7 +124,7 @@ class GrpcBridge:
 
     def request(self, ins_wrapper: InsWrapper) -> ResWrapper:
         """Set ins_wrapper and wait for res_wrapper."""
-        # Set ins_wrapper and transition to INS_WRAPPER_AVAILABLE
+        # Set ins_wrapper and transition to INS_WRAPPER_AVAILABLE$
         with self._cv:
             self._raise_if_closed()
 
@@ -133,7 +133,6 @@ class GrpcBridge:
 
             self._ins_wrapper = ins_wrapper  # Write
             self._transition(Status.INS_WRAPPER_AVAILABLE)
-
         # Read res_wrapper and transition to AWAITING_INS_WRAPPER
         with self._cv:
             self._cv.wait_for(
@@ -147,7 +146,6 @@ class GrpcBridge:
 
         if res_wrapper is None:
             raise Exception("ResWrapper can not be None")
-
         return res_wrapper
 
     def ins_wrapper_iterator(self) -> Iterator[InsWrapper]:

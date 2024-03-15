@@ -47,7 +47,7 @@ enum Reason {
 message ServerMessage {
   message ReconnectIns { int64 seconds = 1; }
   message GetPropertiesIns { map<string, Scalar> config = 1; }
-  message GetParametersIns { map<string, Scalar> config = 1; }  
+  message GetParametersIns { map<string, Scalar> config = 1; }
   message FitIns {
     Parameters parameters = 1;
     map<string, Scalar> config = 2;
@@ -86,10 +86,14 @@ message ServerMessage {
     int32 n = 3;
   }
 
-message SendSumIns{
-  optional string status = 1;
-  repeated int64 sum =2;
-}
+  message SendSumIns{
+    optional string status = 1;
+    repeated int64 sum =2;
+  
+  }
+  
+  message GetGradientsIns {} 
+  
   oneof msg {
     ReconnectIns reconnect_ins = 1;
     GetPropertiesIns get_properties_ins = 2;
@@ -104,6 +108,7 @@ message SendSumIns{
     SendDSIns send_ds_ins = 11;
     SendEvalIns send_eval_ins = 12;
     SendEvalLastIns send_Eval_last_ins=13;
+    GetGradientsIns get_gradients_ins = 14;
   }
 }
 
@@ -176,6 +181,12 @@ message ClientMessage {
     map<string, Scalar> metrics= 3;
 
   }
+  
+  message GetGradientsRes {
+    Status status = 1;
+    Parameters gradients = 2;
+  }
+  
   oneof msg {
     DisconnectRes disconnect_res = 1;
     GetPropertiesRes get_properties_res = 2;
@@ -191,6 +202,7 @@ message ClientMessage {
     SendDSRes send_ds_res = 12;
     SendEvalRes send_eval_res = 13;
     SendEvalLastRes send_eval_last_res = 14;
+    GetGradientsRes get_gradients_res = 15;
   }
 }
 

@@ -297,6 +297,36 @@ def get_parameters_res_from_proto(
     return typing.GetParametersRes(status=status, parameters=parameters)
 
 
+# === GetGradients messages ===
+
+
+def get_gradients_ins_to_proto():
+    return ServerMessage.GetGradientsIns()
+
+def get_gradients_ins_from_proto(msg:ServerMessage.GetGradientsIns):    
+    return 
+
+def get_gradients_res_to_proto(
+    res: typing.GetGradientsRes,
+) -> ClientMessage.GetGradientsRes:
+    """Serialize `GetGradientsRes` to ProtoBuf."""
+    status_msg = status_to_proto(res.status)
+    if res.status.code == typing.Code.GET_PARAMETERS_NOT_IMPLEMENTED:
+        return ClientMessage.GetGradientsRes(status=status_msg)
+    gradients_proto = parameters_to_proto(res.gradients)
+    return ClientMessage.GetGradientsRes(
+        status=status_msg, gradients=gradients_proto
+    )
+
+def get_gradients_res_from_proto(
+    msg: ClientMessage.GetGradientsRes,
+) -> typing.GetGradientsRes:
+    """Deserialize `GetGradientsRes` from ProtoBuf."""
+    status = status_from_proto(msg=msg.status)
+    gradients = parameters_from_proto(msg.gradients)
+    return typing.GetGradientsRes(status=status, gradients=gradients)
+
+
 # === Fit messages ===
 
 

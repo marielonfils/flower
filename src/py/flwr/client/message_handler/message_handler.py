@@ -24,6 +24,7 @@ from flwr.client.client import (
     maybe_call_fit,
     maybe_call_fit_enc,
     maybe_call_get_parameters,
+    maybe_call_get_gradients,
     maybe_call_get_properties,
 )
 from flwr.client.message_handler.task_handler import (
@@ -172,6 +173,8 @@ def handle_legacy_message(
         message = _get_properties(client, server_msg.get_properties_ins)
     if field == "get_parameters_ins":
         message = _get_parameters(client, server_msg.get_parameters_ins)
+    if field == "get_gradients_ins":
+        message = _get_gradients(client, server_msg.get_gradients_ins)
     if field == "fit_ins":
         message = _fit(client, server_msg.fit_ins)
     if field == "evaluate_ins":
@@ -245,6 +248,22 @@ def _get_parameters(
     return ClientMessage(get_parameters_res=get_parameters_res_proto)
 
 
+def _get_gradients(
+    client: Client, get_gradients_msg: ServerMessage.GetGradientsIns
+) -> ClientMessage:
+    # Deserialize `get_gradients` instruction
+    get_gradients_ins = serde.get_gradients_ins_from_proto(get_gradients_msg)
+
+    # Request gradients
+    get_gradients_res = maybe_call_get_gradients(
+        client=client,
+    )
+
+    # Serialize response
+    get_gradients_res_proto = serde.get_gradients_res_to_proto(get_gradients_res)
+    return ClientMessage(get_gradients_res=get_gradients_res_proto)
+    
+    
 def _fit(client: Client, fit_msg: ServerMessage.FitIns) -> ClientMessage:
     # Deserialize fit instruction
     fit_ins = serde.fit_ins_from_proto(fit_msg)

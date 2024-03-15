@@ -85,6 +85,29 @@ class Client(ABC):
             ),
             parameters=Parameters(tensor_type="", tensors=[]),
         )
+        
+    def get_gradients(self, ins: EvaluateIns) -> GetGradientsRes:
+        """Return the current local model gradient.
+
+        Parameters
+        ----------
+        ins : GetGradientsIns
+            The get gradients instructions received from the server containing
+            a dictionary of configuration values.
+
+        Returns
+        -------
+        GetGradientsRes
+            The current local model parameters.
+        """
+        
+        return GetGradientsRes(
+            status=Status(
+                code=Code.GET_PARAMETERS_NOT_IMPLEMENTED,
+                message="Client does not implement `get_gradients`",
+            ),
+            parameters=Parameters(tensor_type="", tensors=[]),
+        )
 
     def fit(self, ins: FitIns,config=None,flat=False) -> FitRes:
         """Refine the provided parameters using the locally held dataset.
@@ -218,7 +241,10 @@ def has_get_properties(client: Client) -> bool:
 def has_get_parameters(client: Client) -> bool:
     """Check if Client implements get_parameters."""
     return type(client).get_parameters != Client.get_parameters
-
+    
+def has_get_gradients(client: Client) -> bool:
+    """Check if Client implements get_gradients."""
+    return type(client).get_gradients != Client.get_gradients
 
 def has_fit(client: Client) -> bool:
     """Check if Client implements fit."""
@@ -276,6 +302,25 @@ def maybe_call_get_parameters(
 
     # If the client implements `get_parameters`, call it
     return client.get_parameters(get_parameters_ins)
+    
+def maybe_call_get_gradients(
+    client: Client
+) -> GetGradientsRes:
+    """Call `get_gradients` if the client overrides it."""
+    # Check if client overrides `get_gradients`
+    if not has_get_gradients(client=client):
+        # If client does not override `get_gradients`, don't call it
+        status = Status(
+            code=Code.GET_PARAMETERS_NOT_IMPLEMENTED,
+            message="Client does not implement `get_gradients`",
+        )
+        return GetGradientsRes(
+            status=status,
+            parameters=Parameters(tensor_type="", tensors=[]),
+        )
+
+    # If the client implements `get_gradients`, call it
+    return client.get_gradients()
 
 
 def maybe_call_fit(client: Client, fit_ins: FitIns) -> FitRes:
