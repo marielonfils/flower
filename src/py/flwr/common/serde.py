@@ -449,17 +449,17 @@ def get_parms_res_from_proto(msg: ClientMessage.GetParmsRes) :
 
 # === SendEnc messages ===
 #send encrypted vector
-def send_enc_ins_to_proto(ctx,enc,n):
+def send_enc_ins_to_proto(ctx,enc):
     """Serialize `SendEncIns` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     enc_proto = enc.serialize()
-    return ServerMessage.SendEncIns(ctx=ctx_proto, enc = enc_proto,n=n)
+    return ServerMessage.SendEncIns(ctx=ctx_proto, enc = enc_proto)
 
 def send_enc_ins_from_proto(msg : ServerMessage.SendEncIns):
     """Deserialize `SendEncIns` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     enc = ts.ckks_vector_from(ctx, msg.enc)
-    return enc, msg.n
+    return enc
 
 #send each individual decryption share
 def send_enc_res_to_proto(ctx,ds):
@@ -476,17 +476,17 @@ def send_enc_res_from_proto(msg: ClientMessage.SendEncRes):
 
 # === SendDS messages ===
 #send aggregated decryption share
-def send_ds_ins_to_proto(ctx, ds,n):
+def send_ds_ins_to_proto(ctx, ds):
     """Serialize `SendDSIns` to ProtoBuf."""
     ctx_proto = ctx.serialize()
     ds_proto = ds.serialize()
-    return ServerMessage.SendDSIns(ctx = ctx_proto, ds = ds_proto,n=n)
+    return ServerMessage.SendDSIns(ctx = ctx_proto, ds = ds_proto)
 
 def send_ds_ins_from_proto(msg:ServerMessage.SendDSIns):
     """Deserialize `SendDSIns` from ProtoBuf."""
     ctx = ts.context_from(msg.ctx)
     ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
-    return ds, msg.n
+    return ds
 
 #send new parameters
 def send_ds_res_to_proto(ctx, enc, loss=0, num_example=0, metrics={}):
@@ -525,36 +525,6 @@ def send_eval_res_to_proto(acc,n, loss):
 
 def send_eval_res_from_proto(msg:ClientMessage.SendEvalRes):
     """Deserialize `SendEvalRes` from ProtoBuf."""
-    metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
-    return typing.EvaluateRes(
-        status=None,
-        loss=msg.loss,
-        num_examples=msg.num_examples,
-        metrics=metrics,
-    )
-
-# === SendEvalLast messages ===
-#send aggregated decryption share
-def send_eval_last_ins_to_proto(ctx, ds,n):
-    """Serialize `SendEvalLastIns` to ProtoBuf."""
-    ctx_proto = ctx.serialize()
-    ds_proto = ds.serialize()
-    return ServerMessage.SendEvalLastIns(ctx = ctx_proto, ds = ds_proto,n=n)
-
-def send_eval_last_ins_from_proto(msg:ServerMessage.SendEvalLastIns):
-    """Deserialize `SendEvalLastIns` from ProtoBuf."""
-    ctx = ts.context_from(msg.ctx)
-    ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
-    return ds, msg.num_examples
-
-#send evaluation results
-def send_eval_last_res_to_proto(acc,n, loss):
-    """Serialize `SendEvalLastRes` to ProtoBuf."""
-    metrics_msg = None if acc is None else metrics_to_proto(acc)
-    return ClientMessage.SendEvalLastRes(loss=loss, num_examples= n, metrics = metrics_msg)
-
-def send_eval_last_res_from_proto(msg:ClientMessage.SendEvalLastRes):
-    """Deserialize `SendEvalLastRes` from ProtoBuf."""
     metrics = None if msg.metrics is None else metrics_from_proto(msg.metrics)
     return typing.EvaluateRes(
         status=None,

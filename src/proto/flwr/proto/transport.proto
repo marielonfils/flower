@@ -68,13 +68,11 @@ message ServerMessage {
   message SendEncIns{
     bytes ctx = 1;
     bytes enc = 2;
-    int32 n = 3;
   }
 
   message SendDSIns{
     bytes ctx = 1;
     bytes ds = 2;
-    int32 n = 3;
   }
 
   message SendEvalIns{
@@ -94,6 +92,10 @@ message ServerMessage {
   
   message GetGradientsIns {} 
   
+message SendSumIns{
+  optional string status = 1;
+  repeated int64 sum =2;
+}
   oneof msg {
     ReconnectIns reconnect_ins = 1;
     GetPropertiesIns get_properties_ins = 2;

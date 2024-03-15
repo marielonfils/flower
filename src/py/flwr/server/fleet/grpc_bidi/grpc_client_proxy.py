@@ -163,51 +163,10 @@ class GrpcClientProxy(ClientProxy):
         self,
         ctx,
         enc,
-        n,
         timeout: Optional[float],
     ):
         """Refine the provided parameters using the locally held dataset."""
-        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc,n=n)
-
-        res_wrapper: ResWrapper = self.bridge.request(
-            ins_wrapper=InsWrapper(
-                server_message=ServerMessage(send_enc_ins=send_enc_ins_msg),
-                timeout=timeout,
-            )
-        )
-        client_msg: ClientMessage = res_wrapper.client_message
-        send_enc_res = serde.send_enc_res_from_proto(client_msg.send_enc_res)
-        return send_enc_res
-    
-    def send_enc(
-        self,
-        ctx,
-        enc,
-        n,
-        timeout: Optional[float],
-    ):
-        """Refine the provided parameters using the locally held dataset."""
-        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc,n=n)
-
-        res_wrapper: ResWrapper = self.bridge.request(
-            ins_wrapper=InsWrapper(
-                server_message=ServerMessage(send_enc_ins=send_enc_ins_msg),
-                timeout=timeout,
-            )
-        )
-        client_msg: ClientMessage = res_wrapper.client_message
-        send_enc_res = serde.send_enc_res_from_proto(client_msg.send_enc_res)
-        return send_enc_res
-    
-    def send_enc(
-        self,
-        ctx,
-        enc,
-        n,
-        timeout: Optional[float],
-    ):
-        """Refine the provided parameters using the locally held dataset."""
-        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc,n=n)
+        send_enc_ins_msg = serde.send_enc_ins_to_proto(ctx,enc=enc)
 
         res_wrapper: ResWrapper = self.bridge.request(
             ins_wrapper=InsWrapper(
@@ -223,11 +182,10 @@ class GrpcClientProxy(ClientProxy):
         self,
         ctx,
         enc,
-        n,
         timeout: Optional[float],
     ):
         """Refine the provided parameters using the locally held dataset."""
-        send_ds_ins_msg = serde.send_ds_ins_to_proto(ctx, ds=enc,n=n)
+        send_ds_ins_msg = serde.send_ds_ins_to_proto(ctx, ds=enc)
 
         res_wrapper: ResWrapper = self.bridge.request(
             ins_wrapper=InsWrapper(
@@ -254,23 +212,6 @@ class GrpcClientProxy(ClientProxy):
         )
         client_msg: ClientMessage = res_wrapper.client_message
         evaluate_res = serde.send_eval_res_from_proto(client_msg.send_eval_res)
-        return evaluate_res
-    
-    def evaluate_last_enc(
-        self,
-        ins: common.EvaluateIns,
-        timeout: Optional[float],
-    ) -> common.EvaluateRes:
-        """Evaluate the provided parameters using the locally held dataset."""
-        evaluate_msg = serde.send_eval_last_ins_to_proto()
-        res_wrapper: ResWrapper = self.bridge.request(
-            ins_wrapper=InsWrapper(
-                server_message=ServerMessage(send_eval_last_ins=evaluate_msg),
-                timeout=timeout,
-            )
-        )
-        client_msg: ClientMessage = res_wrapper.client_message
-        evaluate_res = serde.send_eval_last_res_from_proto(client_msg.send_eval_res)
         return evaluate_res
 
     def evaluate(

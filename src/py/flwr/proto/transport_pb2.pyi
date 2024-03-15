@@ -306,18 +306,15 @@ class ServerMessage(google.protobuf.message.Message):
 
         CTX_FIELD_NUMBER: builtins.int
         ENC_FIELD_NUMBER: builtins.int
-        N_FIELD_NUMBER: builtins.int
         ctx: builtins.bytes
         enc: builtins.bytes
-        n: builtins.int
         def __init__(
             self,
             *,
             ctx: builtins.bytes = ...,
             enc: builtins.bytes = ...,
-            n: builtins.int = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "enc", b"enc", "n", b"n"]) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "enc", b"enc"]) -> None: ...
 
     @typing_extensions.final
     class SendDSIns(google.protobuf.message.Message):
@@ -325,18 +322,15 @@ class ServerMessage(google.protobuf.message.Message):
 
         CTX_FIELD_NUMBER: builtins.int
         DS_FIELD_NUMBER: builtins.int
-        N_FIELD_NUMBER: builtins.int
         ctx: builtins.bytes
         ds: builtins.bytes
-        n: builtins.int
         def __init__(
             self,
             *,
             ctx: builtins.bytes = ...,
             ds: builtins.bytes = ...,
-            n: builtins.int = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "ds", b"ds", "n", b"n"]) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "ds", b"ds"]) -> None: ...
 
     @typing_extensions.final
     class SendEvalIns(google.protobuf.message.Message):
@@ -345,25 +339,6 @@ class ServerMessage(google.protobuf.message.Message):
         def __init__(
             self,
         ) -> None: ...
-
-    @typing_extensions.final
-    class SendEvalLastIns(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-        CTX_FIELD_NUMBER: builtins.int
-        DS_FIELD_NUMBER: builtins.int
-        N_FIELD_NUMBER: builtins.int
-        ctx: builtins.bytes
-        ds: builtins.bytes
-        n: builtins.int
-        def __init__(
-            self,
-            *,
-            ctx: builtins.bytes = ...,
-            ds: builtins.bytes = ...,
-            n: builtins.int = ...,
-        ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "ds", b"ds", "n", b"n"]) -> None: ...
 
     @typing_extensions.final
     class SendSumIns(google.protobuf.message.Message):
@@ -404,7 +379,6 @@ class ServerMessage(google.protobuf.message.Message):
     SEND_ENC_INS_FIELD_NUMBER: builtins.int
     SEND_DS_INS_FIELD_NUMBER: builtins.int
     SEND_EVAL_INS_FIELD_NUMBER: builtins.int
-    SEND_EVAL_LAST_INS_FIELD_NUMBER: builtins.int
     GET_GRADIENTS_INS_FIELD_NUMBER: builtins.int
     @property
     def reconnect_ins(self) -> global___ServerMessage.ReconnectIns: ...
@@ -431,8 +405,6 @@ class ServerMessage(google.protobuf.message.Message):
     @property
     def send_eval_ins(self) -> global___ServerMessage.SendEvalIns: ...
     @property
-    def send_Eval_last_ins(self) -> global___ServerMessage.SendEvalLastIns: ...
-    @property
     def get_gradients_ins(self) -> global___ServerMessage.GetGradientsIns: ...
     def __init__(
         self,
@@ -449,7 +421,6 @@ class ServerMessage(google.protobuf.message.Message):
         send_enc_ins: global___ServerMessage.SendEncIns | None = ...,
         send_ds_ins: global___ServerMessage.SendDSIns | None = ...,
         send_eval_ins: global___ServerMessage.SendEvalIns | None = ...,
-        send_Eval_last_ins: global___ServerMessage.SendEvalLastIns | None = ...,
         get_gradients_ins: global___ServerMessage.GetGradientsIns | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["evaluate_ins", b"evaluate_ins", "fit_ins", b"fit_ins", "get_gradients_ins", b"get_gradients_ins", "get_parameters_ins", b"get_parameters_ins", "get_parms_ins", b"get_parms_ins", "get_pk_ins", b"get_pk_ins", "get_properties_ins", b"get_properties_ins", "msg", b"msg", "reconnect_ins", b"reconnect_ins", "send_Eval_last_ins", b"send_Eval_last_ins", "send_ds_ins", b"send_ds_ins", "send_enc_ins", b"send_enc_ins", "send_eval_ins", b"send_eval_ins", "send_pk_ins", b"send_pk_ins", "send_sum_ins", b"send_sum_ins"]) -> builtins.bool: ...
@@ -860,7 +831,6 @@ class ClientMessage(google.protobuf.message.Message):
     SEND_ENC_RES_FIELD_NUMBER: builtins.int
     SEND_DS_RES_FIELD_NUMBER: builtins.int
     SEND_EVAL_RES_FIELD_NUMBER: builtins.int
-    SEND_EVAL_LAST_RES_FIELD_NUMBER: builtins.int
     GET_GRADIENTS_RES_FIELD_NUMBER: builtins.int
     @property
     def disconnect_res(self) -> global___ClientMessage.DisconnectRes: ...
@@ -889,8 +859,6 @@ class ClientMessage(google.protobuf.message.Message):
     @property
     def send_eval_res(self) -> global___ClientMessage.SendEvalRes: ...
     @property
-    def send_eval_last_res(self) -> global___ClientMessage.SendEvalLastRes: ...
-    @property
     def get_gradients_res(self) -> global___ClientMessage.GetGradientsRes: ...
     def __init__(
         self,
@@ -908,7 +876,6 @@ class ClientMessage(google.protobuf.message.Message):
         send_enc_res: global___ClientMessage.SendEncRes | None = ...,
         send_ds_res: global___ClientMessage.SendDSRes | None = ...,
         send_eval_res: global___ClientMessage.SendEvalRes | None = ...,
-        send_eval_last_res: global___ClientMessage.SendEvalLastRes | None = ...,
         get_gradients_res: global___ClientMessage.GetGradientsRes | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["disconnect_res", b"disconnect_res", "evaluate_res", b"evaluate_res", "fit_res", b"fit_res", "get_gradients_res", b"get_gradients_res", "get_parameters_res", b"get_parameters_res", "get_parms_res", b"get_parms_res", "get_pk_res", b"get_pk_res", "get_properties_res", b"get_properties_res", "get_share_res", b"get_share_res", "msg", b"msg", "send_ds_res", b"send_ds_res", "send_enc_res", b"send_enc_res", "send_eval_last_res", b"send_eval_last_res", "send_eval_res", b"send_eval_res", "send_pk_res", b"send_pk_res", "send_val_res", b"send_val_res"]) -> builtins.bool: ...

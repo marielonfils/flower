@@ -183,7 +183,7 @@ class FedAvg(Strategy):
         return loss, metrics
 
     def configure_fit_enc(
-        self, ins, client_manager: ClientManager, clients
+        self, ins, client_manager: ClientManager, clients=None
     ) -> List[Tuple[ClientProxy, FitIns]]:
         """Configure the next round of training."""
         
@@ -195,12 +195,11 @@ class FedAvg(Strategy):
             clients = client_manager.sample(
                 num_clients=sample_size, min_num_clients=min_num_clients
             )
-        ins2=(*ins,len(clients))
         # Return client/config pairs
-        return [(client,ins2) for client in clients]
+        return [(client,ins) for client in clients]
     
     def configure_evaluate_enc(
-        self, server_round: int, client_manager: ClientManager
+        self, server_round: int, client_manager: ClientManager, clients = None
     ) -> List[Tuple[ClientProxy, EvaluateIns]]:
         """Configure the next round of evaluation."""
         # Do not configure federated evaluation if fraction eval is 0.
@@ -208,16 +207,17 @@ class FedAvg(Strategy):
             return []
 
         # Sample clients
-        sample_size, min_num_clients = self.num_fit_clients(
-                client_manager.num_available()
-        )
-        clients = client_manager.sample(
-            num_clients=sample_size, min_num_clients=min_num_clients
-        )
+        if clients is None:
+            sample_size, min_num_clients = self.num_fit_clients(
+                    client_manager.num_available()
+            )
+            clients = client_manager.sample(
+                num_clients=sample_size, min_num_clients=min_num_clients
+            )
 
-        n=len(clients)
+        n=len(clients) #TODO check n
         # Return client/config pairs
-        return [(client,n ) for client in clients]
+        return [(client,server_round ) for client in clients]
 
 
     def configure_fit(

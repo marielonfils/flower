@@ -181,8 +181,6 @@ def handle_legacy_message(
         message = _evaluate(client, server_msg.evaluate_ins)
     if field == "send_eval_ins":
         message = _evaluate_enc(client, server_msg.evaluate_ins)
-    if field == "send_eval_last_ins":
-        message = _evaluate_last_enc(client, server_msg.evaluate_ins)
     if field == "get_pk_ins":
         message = _get_pk(client, server_msg.get_pk_ins)
     if field == "get_parms_ins":
@@ -242,7 +240,6 @@ def _get_parameters(
         client=client,
         get_parameters_ins=get_parameters_ins,
     )
-
     # Serialize response
     get_parameters_res_proto = serde.get_parameters_res_to_proto(get_parameters_res)
     return ClientMessage(get_parameters_res=get_parameters_res_proto)
@@ -332,7 +329,7 @@ def _get_parms(client: Client, get_parms_msg: ServerMessage.GetParmsIns) -> Clie
 def _get_ds(client: Client, get_ds_msg: ServerMessage.SendEncIns) -> ClientMessage:
     print("############# GET DS ##############")
     #Deserialize get_ds instruction
-    enc,n = serde.send_enc_ins_from_proto(get_ds_msg)
+    enc = serde.send_enc_ins_from_proto(get_ds_msg)
 
     #Perform get_ds
     ctx,ds = client.numpy_client.get_decryption_share(enc)
@@ -343,14 +340,8 @@ def _get_ds(client: Client, get_ds_msg: ServerMessage.SendEncIns) -> ClientMessa
 
 def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMessage:
     print("############# FIT ENC ##############")
-    # Deserialize send_enc instruction
-    ds,n = serde.send_ds_ins_from_proto(send_ds_msg)
-
-    print("----- decrypting parameters -----")
-    #Decrypt parameters
-    parms = ds
-    for i in range(len(parms)):
-        parms[i] = parms[i]/n 
+    # Deserialize send_ds instruction
+    parms = serde.send_ds_ins_from_proto(send_ds_msg)
 
     #Perform evaluation
     print("----- evaluating -----")
@@ -378,6 +369,7 @@ def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMess
     return ClientMessage(send_ds_res=fit_res_proto)
 
 def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> ClientMessage:
+    print("############# EVALUATE ENC ##############")
     # Deserialize evaluate instruction
     evaluate_ins = serde.send_eval_ins_from_proto(evaluate_msg)
 
@@ -392,24 +384,3 @@ def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> Cl
     evaluate_res_proto = serde.send_eval_res_to_proto(acc=acc,n=n,loss=loss)
     return ClientMessage(send_eval_res=evaluate_res_proto)
 
-def _evaluate_last_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> ClientMessage:
-    
-    print("############# EVAL LAST ENC ##############")
-    # Deserialize send_enc instruction
-    ds,n = serde.send_eval_last_ins_from_proto(evaluate_msg)
-    print("----- decrypting parameters -----")
-    #Decrypt parameters
-    parms = ds#client.numpy_client.decrypt(ds)
-    for i in range(len(parms)):
-        parms[i] = parms[i]/n     
-
-    # Perform evaluation
-    evaluate_res = maybe_call_evaluate_enc(
-        client=client,
-        evaluate_ins=None
-    )
-    loss,n,acc = evaluate_res
-
-    # Serialize evaluate result
-    evaluate_res_proto = serde.send_eval_last_res_to_proto(acc=acc,n=n,loss=loss)
-    return ClientMessage(send_eval_last_res=evaluate_res_proto)
