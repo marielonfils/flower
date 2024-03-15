@@ -79,6 +79,7 @@ class Server:
         self.pk = None
         self.n = 0
         self.length=0
+        self.clients = None
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -92,12 +93,12 @@ class Server:
         """Return ClientManager."""
         return self._client_manager
     
-    def get_pk(self, timeout: Optional[float],n=None):
-        min_num_clients = self.strategy.min_available_clients
-        if min_num_clients is None :#TODO check condition
-            min_num_clients = n
-        #TODO check if all clients are available
-        clients = self._client_manager.sample(min_num_clients,min_num_clients)
+    def get_pk(self, timeout: Optional[float]):
+        clients = self.clients
+        if clients is None:
+            min_num_clients = self.strategy.min_available_clients
+            #TODO check if all clients are available
+            clients = self._client_manager.sample(min_num_clients,min_num_clients)
         get_pk_ins = self.context
         client_instructions= [(client, get_pk_ins) for client in clients]
         # Get public keys from all clients
@@ -117,17 +118,18 @@ class Server:
         parameters_aggregated, metrics_aggregated = aggregated_result
         if parameters_aggregated is None :
             raise RuntimeError("Error while aggregating public keys")
-        return parameters_aggregated, len(results)
+        return parameters_aggregated, len(results), clients
     
     def set_pk(self, pk):
         self.context.data.set_publickey(ts._ts_cpp.PublicKey(pk.data.ciphertext()[0]))
         self.pk = self.context.public_key()
     
     def send_pk(self, ctx, timeout : Optional[float]):
-
-        min_num_clients = self.strategy.min_available_clients        
-        clients = self._client_manager.sample(min_num_clients,min_num_clients)
-        #Send aggregated public key to all clients
+        clients = self.clients
+        if clients is None:
+            min_num_clients = self.strategy.min_available_clients        
+            clients = self._client_manager.sample(min_num_clients,min_num_clients)
+            #Send aggregated public key to all clients
         send_pk_ins = ctx
         client_instructions= [(client, send_pk_ins) for client in clients]
         results, failures = fn_clients(
@@ -143,8 +145,9 @@ class Server:
                 raise RuntimeError("Error while sending the aggregated public key")
         return
     
-    def get_initial_parameters_enc(self, timeout: Optional[float],clients=None) -> Parameters:
+    def get_initial_parameters_enc(self, timeout: Optional[float]) -> Parameters:
         """Get initial parameters from all of the available clients."""
+        clients = self.clients
         if clients is None:
             min_num_clients = self.strategy.min_available_clients        
             clients = self._client_manager.sample(min_num_clients,min_num_clients)
@@ -182,7 +185,7 @@ class Server:
     ]:
         """Perform a single round of federated averaging."""
         # Get clients and their respective instructions from strategy
-        clients = None
+        clients = self.clients
         client_instructions = self.strategy.configure_fit_enc(
             (self.context,self.parameters) ,
             client_manager=self._client_manager, 
@@ -267,7 +270,7 @@ class Server:
             raise RuntimeError("Error while getting the new parameters")
         #TODO change here for reputation
         if len(results2) != self.n:
-            self.change_n(len(results2),timeout)
+            self.change_n(len(results2),[c for c,_ in results2] ,timeout)
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
@@ -290,7 +293,7 @@ class Server:
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         print("#################SET PK#################")
-        pk_aggregated,self.n = self.get_pk(timeout=timeout) #TODO fix timeout
+        pk_aggregated,self.n,self.clients = self.get_pk(timeout=timeout) #TODO fix timeout
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
@@ -338,18 +341,19 @@ class Server:
         log(INFO, "FL finished in %s", elapsed)
         return history
     
-    def change_n(self,n,timeout):
+    def change_n(self,n, clients,timeout):
         self.n = n
+        self.clients = clients
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         print("#################SET PK#################")
-        pk_aggregated, n = self.get_pk(timeout=timeout,n=self.n) #TDO fix timeout
+        pk_aggregated, n, _ = self.get_pk(timeout=timeout) #TDO fix timeout
         if n != self.n:
             raise RuntimeError("Error while getting the public keys")
-        self.set_pk(pk_aggregated)
+        self.set_pk(pk_aggregated, timeout=timeout)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
-        print("#################GET INITIAL PARAMETERS#################")
+        print("#################GET PARAMETERS#################")
         self.parameters = self.get_initial_parameters_enc(timeout=timeout)
 
     
@@ -364,7 +368,7 @@ class Server:
     ]:
         """Perform a single round of federated averaging."""
         # Get clients and their respective instructions from strategy
-        clients = None
+        clients = self.clients
         client_instructions = self.strategy.configure_fit_enc(
             (self.context,self.parameters) ,
             client_manager=self._client_manager, 
@@ -440,6 +444,7 @@ class Server:
         client_instructions = self.strategy.configure_evaluate_enc(
             server_round=server_round,
             client_manager=self._client_manager,
+            clients = self.clients
         )
         if not client_instructions:
             log(INFO, "evaluate_round %s: no clients selected, cancel", server_round)
