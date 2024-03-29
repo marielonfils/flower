@@ -92,6 +92,7 @@ class Server:
         self.parameters = self._get_initial_parameters(timeout=timeout)
         log(INFO, "Evaluating initial parameters")
         res = self.strategy.evaluate(0, parameters=self.parameters)
+        self.n = self.strategy.min_available_clients
         if res is not None:
             log(
                 INFO,
@@ -246,7 +247,7 @@ class Server:
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
-        ] = self.strategy.aggregate_fit(server_round, results, failures)
+        ] = self.strategy.aggregate_fit2(server_round, results, failures,self.n)
 
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
