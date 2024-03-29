@@ -31,12 +31,13 @@ def aggregate(results: List[Tuple[NDArrays, int]]) -> NDArrays:
 
     # Create a list of weights, each multiplied by the related number of examples
     weighted_weights = [
-        [layer * num_examples for layer in weights] for weights, num_examples in results
+        [layer for layer in weights] for weights, num_examples  in results
+        #[layer * num_examples for layer in weights] for weights, num_examples in results
     ]
 
     # Compute average weights of each layer
     weights_prime: NDArrays = [
-        reduce(np.add, layer_updates) / num_examples_total
+        reduce(np.add, layer_updates) #/ num_examples_total
         for layer_updates in zip(*weighted_weights)
     ]
     return weights_prime
@@ -60,11 +61,13 @@ def aggregate_inplace(results: List[Tuple[ClientProxy, FitRes]]) -> NDArrays:
     # Let's do in-place aggregation
     # Get first result, then add up each other
     params = [
-        scaling_factors[0] * x for x in parameters_to_ndarrays(results[0][1].parameters)
+        x for x in parameters_to_ndarrays(results[0][1].parameters)
+        #scaling_factors[0] * x for x in parameters_to_ndarrays(results[0][1].parameters)
     ]
     for i, (_, fit_res) in enumerate(results[1:]):
         res = (
-            scaling_factors[i + 1] * x
+            #scaling_factors[i + 1] * x
+            x
             for x in parameters_to_ndarrays(fit_res.parameters)
         )
         params = [reduce(np.add, layer_updates) for layer_updates in zip(params, res)]

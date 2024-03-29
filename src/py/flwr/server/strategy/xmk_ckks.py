@@ -314,9 +314,12 @@ class FedAvg(Strategy):
         if not self.accept_failures and len(failures)>0:#not self.accept_failures and failures:
             return None, {}
         
-        init2=init[0]
+        init2=init[0]#*init[1].num_examples
         parameters_aggregated = mean(results, aggregate_fn,init=init2)
-
+        n_tot=0
+        for _,res in results:
+            n_tot+=res[1].num_examples
+        #parameters_aggregated=parameters_aggregated*(1/n_tot)
         # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:

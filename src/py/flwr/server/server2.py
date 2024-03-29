@@ -220,7 +220,7 @@ class Server:
         if len(failures) != 0 or len(results) != self.n:
             raise RuntimeError("Error while getting the decryption shares")
         
-        # Aggregate decrypteion shares
+        # Aggregate decryption shares
         aggregated_ds: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
@@ -275,7 +275,7 @@ class Server:
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
-        ] = self.strategy.aggregate_fit_enc(server_round, results2[1:], lambda x,y : x.add(y[1][0]),results2[0][1], failures2)
+        ] = self.strategy.aggregate_fit_enc(server_round, results2[1:], lambda x,y : x.add(y[1][0]),results2[0][1], failures2) #**y[1][1].num_examples
         
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
@@ -292,12 +292,12 @@ class Server:
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
-        print("#################SET PK#################")
+        log(INFO, "#################SET PK#################")
         pk_aggregated,self.n,self.clients = self.get_pk(timeout=timeout) #TODO fix timeout
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
-        print("#################GET INITIAL PARAMETERS#################")
+        log(INFO, "#################GET INITIAL PARAMETERS#################")
         self.length = length
         self.parameters = self.get_initial_parameters_enc(timeout=timeout)
         log(INFO, "Evaluating initial parameters")
@@ -313,10 +313,9 @@ class Server:
         # Run federated learning for num_rounds
         log(INFO, "FL starting")
         start_time = timeit.default_timer()
-        print("#################TRAIN#################")
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
-            print("#################FIT ROUND#################", current_round)
+            log(INFO, "#################FIT ROUND#################%f", current_round)
             res_fit = self.fit_round_enc(
                 server_round=current_round,
                 current_round=current_round,
@@ -346,14 +345,14 @@ class Server:
         self.clients = clients
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
-        print("#################SET PK#################")
+        log(INFO, "#################SET PK#################")
         pk_aggregated, n, _ = self.get_pk(timeout=timeout) #TDO fix timeout
         if n != self.n:
             raise RuntimeError("Error while getting the public keys")
         self.set_pk(pk_aggregated, timeout=timeout)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
-        print("#################GET PARAMETERS#################")
+        log(INFO, "#################GET PARAMETERS#################")
         self.parameters = self.get_initial_parameters_enc(timeout=timeout)
 
     
@@ -418,7 +417,7 @@ class Server:
     
     def evaluate_enc(self,parameters,current_round, start_time, history):
         # Evaluate model using strategy implementation
-        print("#################EVALUATE ENC#################",current_round)
+        log(INFO, "#################EVALUATE ENC#################%f",current_round)
         p=parameters.mk_decode() #TODO check division by n
         res_cen = self.strategy.evaluate_enc(current_round, parameters=p)#[x/self.n for x in p])
         if res_cen is not None:
@@ -438,7 +437,7 @@ class Server:
 
     def evaluate_round_enc(self,server_round,history,timeout):
         # Evaluate model on a sample of available clients
-        print("#################EVALUATE ROUND#################", server_round)
+        log(INFO, "#################EVALUATE ROUND#################%f", server_round)
 
         # Get clients and their respective instructions from strategy
         client_instructions = self.strategy.configure_evaluate_enc(
@@ -483,6 +482,7 @@ class Server:
         
         if aggregated_result is not None:
             loss_fed, evaluate_metrics_fed = aggregated_result
+            print("metrics",evaluate_metrics_fed)
             if loss_fed is not None:
                 history.add_loss_distributed(
                     server_round=server_round, loss=loss_fed
