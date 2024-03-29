@@ -74,7 +74,7 @@ class Server:
         )
         self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.max_workers: Optional[int] = None
-        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60])
+        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 16384, coeff_mod_bit_sizes=[60,39,39,39,39,39,39,39,39,60])
         self.context.global_scale = 2**40
         self.pk = None
         self.n = 0
