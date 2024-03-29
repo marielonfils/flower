@@ -404,7 +404,7 @@ class Server:
         if len(failures) != 0 or len(results) != self.n:
             raise RuntimeError("Error while getting the decryption shares")
         
-        # Aggregate decrypteion shares
+        # Aggregate decryption shares
         aggregated_ds: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
