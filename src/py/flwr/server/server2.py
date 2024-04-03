@@ -74,10 +74,11 @@ class Server:
         )
         self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.max_workers: Optional[int] = None
-        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 16384, coeff_mod_bit_sizes=[60,39,39,39,39,39,39,39,39,60])
+        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60] 		)
         self.context.global_scale = 2**40
         self.pk = None
         self.n = 0
+        self.n_tot = 1
         self.length=0
         self.clients = None
 
@@ -226,7 +227,7 @@ class Server:
             Dict[str, Scalar],
         ] = self.strategy.aggregate(server_round, results, lambda x,y : x.add_share(y[1]),self.parameters,failures)
         
-        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n), aggregated_ds[1]
+        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n_tot), aggregated_ds[1]#*(1/self.n)
         
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
@@ -272,12 +273,13 @@ class Server:
         if len(results2) != self.n:
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
         # Aggregate training results
+        
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
         ] = self.strategy.aggregate_fit_enc(server_round, results2[1:], lambda x,y : x.add(y[1][0]),results2[0][1], failures2) #**y[1][1].num_examples
         
-        parameters_aggregated, metrics_aggregated = aggregated_result
+        parameters_aggregated, metrics_aggregated, self.n_tot = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
 
 
@@ -294,6 +296,7 @@ class Server:
         # Public Keys aggregation
         log(INFO, "#################SET PK#################")
         pk_aggregated,self.n,self.clients = self.get_pk(timeout=timeout) #TODO fix timeout
+        self.n_tot = self.n
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
@@ -410,7 +413,7 @@ class Server:
             Dict[str, Scalar],
         ] = self.strategy.aggregate(server_round, results, lambda x,y : x.add_share(y[1]),self.parameters,failures)
         
-        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n), aggregated_ds[1]
+        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n_tot), aggregated_ds[1] #*(1/self.n)
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
 

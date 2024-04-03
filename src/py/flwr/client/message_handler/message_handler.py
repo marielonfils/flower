@@ -345,7 +345,7 @@ def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMess
 
     #Encrypt parameters
     #print("----- encrypting parameters -----")
-    ctx, enc_new = client.numpy_client.get_parms_enc()
+    ctx, enc_new = client.numpy_client.get_parms_enc(train=True)
     # Serialize fit result
     #TODO check here if length 
     fit_res_proto = serde.send_ds_res_to_proto(ctx,enc_new,l,length,acc)
