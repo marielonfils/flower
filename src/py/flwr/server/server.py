@@ -92,6 +92,16 @@ class Server:
         self.parameters = self._get_initial_parameters(timeout=timeout)
         log(INFO, "Evaluating initial parameters")
         res = self.strategy.evaluate(0, parameters=self.parameters)
+        res_fed = self.evaluate_round(server_round=0, timeout=timeout)
+        if res_fed is not None:
+            loss_fed, evaluate_metrics_fed, _ = res_fed
+            if loss_fed is not None:
+                history.add_loss_distributed(
+                    server_round=0, loss=loss_fed
+                )
+                history.add_metrics_distributed(
+                    server_round=0, metrics=evaluate_metrics_fed
+                )
         self.n = self.strategy.min_available_clients
         if res is not None:
             log(

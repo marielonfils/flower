@@ -73,7 +73,6 @@ def aggregate_inplace(results: List[Tuple[ClientProxy, FitRes]]) -> NDArrays:
     # Compute scaling factors for each result
     scaling_factors = [
         fit_res.num_examples / num_examples_total for _, fit_res in results
-        #fit_res.num_examples / num_examples_total for _, fit_res in results
     ]
 
     # Let's do in-place aggregation
