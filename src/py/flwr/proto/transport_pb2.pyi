@@ -341,6 +341,36 @@ class ServerMessage(google.protobuf.message.Message):
         ) -> None: ...
 
     @typing_extensions.final
+    class GetGradientsIns(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        def __init__(
+            self,
+        ) -> None: ...
+
+    @typing_extensions.final
+    class IdentifyIns(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        def __init__(
+            self,
+        ) -> None: ...
+
+    @typing_extensions.final
+    class GetContributionsIns(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        GRADIENTS_FIELD_NUMBER: builtins.int
+        @property
+        def gradients(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___Parameters]: ...
+        def __init__(
+            self,
+            *,
+            gradients: collections.abc.Iterable[global___Parameters] | None = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["gradients", b"gradients"]) -> None: ...
+
+    @typing_extensions.final
     class SendSumIns(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -359,14 +389,6 @@ class ServerMessage(google.protobuf.message.Message):
         def ClearField(self, field_name: typing_extensions.Literal["_status", b"_status", "status", b"status", "sum", b"sum"]) -> None: ...
         def WhichOneof(self, oneof_group: typing_extensions.Literal["_status", b"_status"]) -> typing_extensions.Literal["status"] | None: ...
 
-    @typing_extensions.final
-    class GetGradientsIns(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-        def __init__(
-            self,
-        ) -> None: ...
-
     RECONNECT_INS_FIELD_NUMBER: builtins.int
     GET_PROPERTIES_INS_FIELD_NUMBER: builtins.int
     GET_PARAMETERS_INS_FIELD_NUMBER: builtins.int
@@ -380,6 +402,8 @@ class ServerMessage(google.protobuf.message.Message):
     SEND_DS_INS_FIELD_NUMBER: builtins.int
     SEND_EVAL_INS_FIELD_NUMBER: builtins.int
     GET_GRADIENTS_INS_FIELD_NUMBER: builtins.int
+    IDENTIFY_INS_FIELD_NUMBER: builtins.int
+    GET_CONTRIBUTIONS_INS_FIELD_NUMBER: builtins.int
     @property
     def reconnect_ins(self) -> global___ServerMessage.ReconnectIns: ...
     @property
@@ -406,6 +430,10 @@ class ServerMessage(google.protobuf.message.Message):
     def send_eval_ins(self) -> global___ServerMessage.SendEvalIns: ...
     @property
     def get_gradients_ins(self) -> global___ServerMessage.GetGradientsIns: ...
+    @property
+    def identify_ins(self) -> global___ServerMessage.IdentifyIns: ...
+    @property
+    def get_contributions_ins(self) -> global___ServerMessage.GetContributionsIns: ...
     def __init__(
         self,
         *,
@@ -422,10 +450,12 @@ class ServerMessage(google.protobuf.message.Message):
         send_ds_ins: global___ServerMessage.SendDSIns | None = ...,
         send_eval_ins: global___ServerMessage.SendEvalIns | None = ...,
         get_gradients_ins: global___ServerMessage.GetGradientsIns | None = ...,
+        identify_ins: global___ServerMessage.IdentifyIns | None = ...,
+        get_contributions_ins: global___ServerMessage.GetContributionsIns | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["evaluate_ins", b"evaluate_ins", "fit_ins", b"fit_ins", "get_gradients_ins", b"get_gradients_ins", "get_parameters_ins", b"get_parameters_ins", "get_parms_ins", b"get_parms_ins", "get_pk_ins", b"get_pk_ins", "get_properties_ins", b"get_properties_ins", "msg", b"msg", "reconnect_ins", b"reconnect_ins", "send_Eval_last_ins", b"send_Eval_last_ins", "send_ds_ins", b"send_ds_ins", "send_enc_ins", b"send_enc_ins", "send_eval_ins", b"send_eval_ins", "send_pk_ins", b"send_pk_ins", "send_sum_ins", b"send_sum_ins"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["evaluate_ins", b"evaluate_ins", "fit_ins", b"fit_ins", "get_gradients_ins", b"get_gradients_ins", "get_parameters_ins", b"get_parameters_ins", "get_parms_ins", b"get_parms_ins", "get_pk_ins", b"get_pk_ins", "get_properties_ins", b"get_properties_ins", "msg", b"msg", "reconnect_ins", b"reconnect_ins", "send_Eval_last_ins", b"send_Eval_last_ins", "send_ds_ins", b"send_ds_ins", "send_enc_ins", b"send_enc_ins", "send_eval_ins", b"send_eval_ins", "send_pk_ins", b"send_pk_ins", "send_sum_ins", b"send_sum_ins"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["msg", b"msg"]) -> typing_extensions.Literal["reconnect_ins", "get_properties_ins", "get_parameters_ins", "fit_ins", "evaluate_ins", "send_sum_ins", "get_pk_ins", "send_pk_ins", "get_parms_ins", "send_enc_ins", "send_ds_ins", "send_eval_ins", "send_Eval_last_ins", "get_gradients_ins"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["evaluate_ins", b"evaluate_ins", "fit_ins", b"fit_ins", "get_contributions_ins", b"get_contributions_ins", "get_gradients_ins", b"get_gradients_ins", "get_parameters_ins", b"get_parameters_ins", "get_parms_ins", b"get_parms_ins", "get_pk_ins", b"get_pk_ins", "get_properties_ins", b"get_properties_ins", "identify_ins", b"identify_ins", "msg", b"msg", "reconnect_ins", b"reconnect_ins", "send_ds_ins", b"send_ds_ins", "send_enc_ins", b"send_enc_ins", "send_eval_ins", b"send_eval_ins", "send_pk_ins", b"send_pk_ins", "send_sum_ins", b"send_sum_ins"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["evaluate_ins", b"evaluate_ins", "fit_ins", b"fit_ins", "get_contributions_ins", b"get_contributions_ins", "get_gradients_ins", b"get_gradients_ins", "get_parameters_ins", b"get_parameters_ins", "get_parms_ins", b"get_parms_ins", "get_pk_ins", b"get_pk_ins", "get_properties_ins", b"get_properties_ins", "identify_ins", b"identify_ins", "msg", b"msg", "reconnect_ins", b"reconnect_ins", "send_ds_ins", b"send_ds_ins", "send_enc_ins", b"send_enc_ins", "send_eval_ins", b"send_eval_ins", "send_pk_ins", b"send_pk_ins", "send_sum_ins", b"send_sum_ins"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["msg", b"msg"]) -> typing_extensions.Literal["reconnect_ins", "get_properties_ins", "get_parameters_ins", "fit_ins", "evaluate_ins", "send_sum_ins", "get_pk_ins", "send_pk_ins", "get_parms_ins", "send_enc_ins", "send_ds_ins", "send_eval_ins", "get_gradients_ins", "identify_ins", "get_contributions_ins"] | None: ...
 
 global___ServerMessage = ServerMessage
 
@@ -818,6 +848,33 @@ class ClientMessage(google.protobuf.message.Message):
         def HasField(self, field_name: typing_extensions.Literal["gradients", b"gradients", "status", b"status"]) -> builtins.bool: ...
         def ClearField(self, field_name: typing_extensions.Literal["gradients", b"gradients", "status", b"status"]) -> None: ...
 
+    @typing_extensions.final
+    class IdentifyRes(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        STATUS_FIELD_NUMBER: builtins.int
+        status: builtins.int
+        def __init__(
+            self,
+            *,
+            status: builtins.int = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["status", b"status"]) -> None: ...
+
+    @typing_extensions.final
+    class GetContributionsRes(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        CONTRIBUTIONS_FIELD_NUMBER: builtins.int
+        @property
+        def contributions(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.float]: ...
+        def __init__(
+            self,
+            *,
+            contributions: collections.abc.Iterable[builtins.float] | None = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["contributions", b"contributions"]) -> None: ...
+
     DISCONNECT_RES_FIELD_NUMBER: builtins.int
     GET_PROPERTIES_RES_FIELD_NUMBER: builtins.int
     GET_PARAMETERS_RES_FIELD_NUMBER: builtins.int
@@ -832,6 +889,8 @@ class ClientMessage(google.protobuf.message.Message):
     SEND_DS_RES_FIELD_NUMBER: builtins.int
     SEND_EVAL_RES_FIELD_NUMBER: builtins.int
     GET_GRADIENTS_RES_FIELD_NUMBER: builtins.int
+    IDENTIFY_RES_FIELD_NUMBER: builtins.int
+    GET_CONTRIBUTIONS_RES_FIELD_NUMBER: builtins.int
     @property
     def disconnect_res(self) -> global___ClientMessage.DisconnectRes: ...
     @property
@@ -860,6 +919,10 @@ class ClientMessage(google.protobuf.message.Message):
     def send_eval_res(self) -> global___ClientMessage.SendEvalRes: ...
     @property
     def get_gradients_res(self) -> global___ClientMessage.GetGradientsRes: ...
+    @property
+    def identify_res(self) -> global___ClientMessage.IdentifyRes: ...
+    @property
+    def get_contributions_res(self) -> global___ClientMessage.GetContributionsRes: ...
     def __init__(
         self,
         *,
@@ -877,10 +940,12 @@ class ClientMessage(google.protobuf.message.Message):
         send_ds_res: global___ClientMessage.SendDSRes | None = ...,
         send_eval_res: global___ClientMessage.SendEvalRes | None = ...,
         get_gradients_res: global___ClientMessage.GetGradientsRes | None = ...,
+        identify_res: global___ClientMessage.IdentifyRes | None = ...,
+        get_contributions_res: global___ClientMessage.GetContributionsRes | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["disconnect_res", b"disconnect_res", "evaluate_res", b"evaluate_res", "fit_res", b"fit_res", "get_gradients_res", b"get_gradients_res", "get_parameters_res", b"get_parameters_res", "get_parms_res", b"get_parms_res", "get_pk_res", b"get_pk_res", "get_properties_res", b"get_properties_res", "get_share_res", b"get_share_res", "msg", b"msg", "send_ds_res", b"send_ds_res", "send_enc_res", b"send_enc_res", "send_eval_last_res", b"send_eval_last_res", "send_eval_res", b"send_eval_res", "send_pk_res", b"send_pk_res", "send_val_res", b"send_val_res"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["disconnect_res", b"disconnect_res", "evaluate_res", b"evaluate_res", "fit_res", b"fit_res", "get_gradients_res", b"get_gradients_res", "get_parameters_res", b"get_parameters_res", "get_parms_res", b"get_parms_res", "get_pk_res", b"get_pk_res", "get_properties_res", b"get_properties_res", "get_share_res", b"get_share_res", "msg", b"msg", "send_ds_res", b"send_ds_res", "send_enc_res", b"send_enc_res", "send_eval_last_res", b"send_eval_last_res", "send_eval_res", b"send_eval_res", "send_pk_res", b"send_pk_res", "send_val_res", b"send_val_res"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing_extensions.Literal["msg", b"msg"]) -> typing_extensions.Literal["disconnect_res", "get_properties_res", "get_parameters_res", "fit_res", "evaluate_res", "send_val_res", "get_share_res", "get_pk_res", "send_pk_res", "get_parms_res", "send_enc_res", "send_ds_res", "send_eval_res", "send_eval_last_res", "get_gradients_res"] | None: ...
+    def HasField(self, field_name: typing_extensions.Literal["disconnect_res", b"disconnect_res", "evaluate_res", b"evaluate_res", "fit_res", b"fit_res", "get_contributions_res", b"get_contributions_res", "get_gradients_res", b"get_gradients_res", "get_parameters_res", b"get_parameters_res", "get_parms_res", b"get_parms_res", "get_pk_res", b"get_pk_res", "get_properties_res", b"get_properties_res", "get_share_res", b"get_share_res", "identify_res", b"identify_res", "msg", b"msg", "send_ds_res", b"send_ds_res", "send_enc_res", b"send_enc_res", "send_eval_res", b"send_eval_res", "send_pk_res", b"send_pk_res", "send_val_res", b"send_val_res"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["disconnect_res", b"disconnect_res", "evaluate_res", b"evaluate_res", "fit_res", b"fit_res", "get_contributions_res", b"get_contributions_res", "get_gradients_res", b"get_gradients_res", "get_parameters_res", b"get_parameters_res", "get_parms_res", b"get_parms_res", "get_pk_res", b"get_pk_res", "get_properties_res", b"get_properties_res", "get_share_res", b"get_share_res", "identify_res", b"identify_res", "msg", b"msg", "send_ds_res", b"send_ds_res", "send_enc_res", b"send_enc_res", "send_eval_res", b"send_eval_res", "send_pk_res", b"send_pk_res", "send_val_res", b"send_val_res"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing_extensions.Literal["msg", b"msg"]) -> typing_extensions.Literal["disconnect_res", "get_properties_res", "get_parameters_res", "fit_res", "evaluate_res", "send_val_res", "get_share_res", "get_pk_res", "send_pk_res", "get_parms_res", "send_enc_res", "send_ds_res", "send_eval_res", "get_gradients_res", "identify_res", "get_contributions_res"] | None: ...
 
 global___ClientMessage = ClientMessage
 

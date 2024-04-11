@@ -191,6 +191,10 @@ def handle_legacy_message(
         message = _get_ds(client, server_msg.send_enc_ins)
     if field == "send_ds_ins":
         message = _fit_enc(client, server_msg.send_ds_ins)
+    if field == "identify_ins":
+        message = _identify(client, server_msg.identify_ins)
+    if field == "get_contributions_ins":
+        message = _get_contributions(client, server_msg.get_contributions_ins)
     if server_msg.HasField("send_sum_ins"):
         return _example_response(client, server_msg.send_sum_ins), client.get_state()
     if message:
@@ -383,4 +387,22 @@ def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> Cl
     # Serialize evaluate result
     evaluate_res_proto = serde.send_eval_res_to_proto(acc=acc,n=n,loss=loss)
     return ClientMessage(send_eval_res=evaluate_res_proto)
+    
+def _identify(client: Client, msg: ServerMessage.IdentifyIns) -> ClientMessage:
+    status = client.identify()
+    identify_res = ClientMessage.IdentifyRes(status=status)
+    return ClientMessage(identify_res=identify_res)
 
+def _get_contributions(
+    client: Client, get_contributions_msg: ServerMessage.GetContributionsIns
+) -> ClientMessage:
+    # Deserialize `get_contributions` instruction
+    get_contributions_ins = serde.get_contributions_ins_from_proto(get_contributions_msg)
+
+    # Request contributions
+    get_contributions_res = client.numpy_client.get_contributions(get_contributions_ins)
+
+    # Serialize response
+    get_contributions_res_proto = serde.get_contributions_res_to_proto(get_contributions_res)
+    return ClientMessage(get_contributions_res=get_contributions_res_proto)
+    

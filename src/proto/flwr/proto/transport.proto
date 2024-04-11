@@ -47,7 +47,7 @@ enum Reason {
 message ServerMessage {
   message ReconnectIns { int64 seconds = 1; }
   message GetPropertiesIns { map<string, Scalar> config = 1; }
-  message GetParametersIns { map<string, Scalar> config = 1; }
+  message GetParametersIns { map<string, Scalar> config = 1; }  
   message FitIns {
     Parameters parameters = 1;
     map<string, Scalar> config = 2;
@@ -77,25 +77,18 @@ message ServerMessage {
 
   message SendEvalIns{
   }
-
-  message SendEvalLastIns{
-    bytes ctx = 1;
-    bytes ds = 2;
-    int32 n = 3;
-  }
-
-  message SendSumIns{
-    optional string status = 1;
-    repeated int64 sum =2;
-  
-  }
   
   message GetGradientsIns {} 
   
-message SendSumIns{
-  optional string status = 1;
-  repeated int64 sum =2;
-}
+  message IdentifyIns {}
+  
+  message GetContributionsIns{
+      repeated Parameters gradients = 1;
+  }
+  message SendSumIns{
+    optional string status = 1;
+    repeated int64 sum =2;
+  }
   oneof msg {
     ReconnectIns reconnect_ins = 1;
     GetPropertiesIns get_properties_ins = 2;
@@ -109,8 +102,9 @@ message SendSumIns{
     SendEncIns send_enc_ins = 10;
     SendDSIns send_ds_ins = 11;
     SendEvalIns send_eval_ins = 12;
-    SendEvalLastIns send_Eval_last_ins=13;
-    GetGradientsIns get_gradients_ins = 14;
+    GetGradientsIns get_gradients_ins = 13;
+    IdentifyIns identify_ins = 14;
+    GetContributionsIns get_contributions_ins = 15;
   }
 }
 
@@ -188,7 +182,12 @@ message ClientMessage {
     Status status = 1;
     Parameters gradients = 2;
   }
-  
+  message IdentifyRes {
+    int64 status = 1;
+  }
+  message GetContributionsRes{
+      repeated float contributions = 1;
+  }
   oneof msg {
     DisconnectRes disconnect_res = 1;
     GetPropertiesRes get_properties_res = 2;
@@ -203,8 +202,9 @@ message ClientMessage {
     SendEncRes send_enc_res = 11;
     SendDSRes send_ds_res = 12;
     SendEvalRes send_eval_res = 13;
-    SendEvalLastRes send_eval_last_res = 14;
-    GetGradientsRes get_gradients_res = 15;
+    GetGradientsRes get_gradients_res = 14;
+    IdentifyRes identify_res = 15;
+    GetContributionsRes get_contributions_res = 16;
   }
 }
 

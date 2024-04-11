@@ -391,3 +391,5 @@ def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns,reshape=Fa
 
     # If the client implements `evaluate`, call it
     return client.evaluate_enc(evaluate_ins,reshape)
+   
+   

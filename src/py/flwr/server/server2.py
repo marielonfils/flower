@@ -31,6 +31,8 @@ from flwr.common import (
     ReconnectIns,
     Scalar,
     serde,
+    parameters_to_ndarrays,
+    ndarrays_to_parameters,
 )
 from flwr.common.logger import log
 from flwr.common.typing import GetParametersIns
@@ -173,10 +175,10 @@ class Server:
         return parameters_aggregated
 
     def compute_reputation(self, server_round, timeout):
-        clients = self._client_manager.all().values()
+        min_num_clients = self.strategy.min_available_clients
+        clients = self._client_manager.sample(min_num_clients,min_num_clients)
         client_instructions= [(client, None) for client in clients]
-        
-        results3, failures3 = fn_clients(
+        results, failures = fn_clients(
             client_fn=get_gradients,
             client_instructions=client_instructions,
             max_workers=self.max_workers,
@@ -184,11 +186,29 @@ class Server:
         )
         log(
             DEBUG,
-            "contribution %s received %s results and %s failures",
+            "gradients %s received %s results and %s failures",
             server_round,
-            len(results3),
-            len(failures3),
+            len(results),
+            len(failures),
         )
+        gradients = [parameters_to_ndarrays(x[1].gradients) for x in results]
+        ce_server = self._client_manager.ce_server
+        client_instructions= [(ce_server, gradients)]
+        results, failures = fn_clients(
+            client_fn=get_contributions,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
+        log(
+            DEBUG,
+            "contributions %s received %s results and %s failures",
+            server_round,
+            len(results),
+            len(failures),
+        )
+        print(results)
+        return 
         
     def fit_round_enc(
         self,
@@ -286,6 +306,10 @@ class Server:
         if len(failures2) != 0 or len(results2) != self.n:
             raise RuntimeError("Error while getting the new parameters")
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
+            
+        #send aggregated parameters to ce server
+        evaluate_client(self._client_manager.ce_server, EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={}) , timeout)
+        # compute the reputation of each client
         self.compute_reputation(server_round, timeout)
         if len(results2) != self.n:
             self.change_n(len(results2),timeout)
@@ -307,6 +331,21 @@ class Server:
         # distributed : weighted average of clients results with new parameters
         # distributed_fit : weighted average of clients results with received parameters
         # centralized : server result
+        log(INFO, "Identify the CE server")
+        #here
+        min_num_clients = self.strategy.min_available_clients
+        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
+        client_instructions= [(client, None) for client in clients]
+        
+        results, failures = fn_clients(
+            client_fn=identify,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
+        for r in results:
+            if r[1] == 1:
+                self._client_manager.unregister(r[0])
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
@@ -827,7 +866,6 @@ def _handle_finished_future_after_fn(
     failure = future.exception()
     if failure is not None:
         failures.append(failure)
-        print(failure)
         return
 
     # Successfully received a result from a client
@@ -921,5 +959,17 @@ def get_gradients(
 ) :
     get_gradients_res = client.get_gradients(timeout=timeout)
     return client, get_gradients_res
+    
+def get_contributions(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    get_contribution_res = client.get_contributions(ins,timeout=timeout)
+    return client, get_contribution_res
+    
+def identify(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    status = client.identify(timeout=timeout)
+    return client, status
     
     

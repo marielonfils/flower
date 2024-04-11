@@ -259,3 +259,34 @@ class GrpcClientProxy(ClientProxy):
         client_msg: ClientMessage = res_wrapper.client_message
         response, answer = serde.example_res_from_proto(client_msg.send_val_res)
         return response, answer
+        
+    def identify(
+        self,
+        timeout: Optional[float],
+    ):
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(identify_ins=ServerMessage.IdentifyIns()),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        status = client_msg.identify_res.status
+        return status
+        
+    def get_contributions(
+        self,
+        ins,
+        timeout: Optional[float],
+    ):
+        get_contributions_ins_msg = serde.get_contributions_ins_to_proto(ins)
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(get_contributions_ins=get_contributions_ins_msg),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        get_contributions_res = serde.get_contributions_res_from_proto(client_msg.get_contributions_res)
+        return get_contributions_res
+        

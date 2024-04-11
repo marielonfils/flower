@@ -27,7 +27,13 @@ from flwr.proto.transport_pb2 import (
     ServerMessage,
     Status,
 )
-
+from flwr.common import (
+    NDArrays,
+    ndarray_to_bytes,
+    bytes_to_ndarray,
+    ndarrays_to_parameters,
+    parameters_to_ndarrays,
+)
 from . import typing
 
 import sys
@@ -297,6 +303,38 @@ def get_parameters_res_from_proto(
     return typing.GetParametersRes(status=status, parameters=parameters)
 
 
+# === GetContributions messages ===
+
+
+def get_contributions_ins_to_proto(
+    ins
+) -> ServerMessage.GetContributionsIns:
+    """Serialize `GetContributionsIns` to ProtoBuf."""
+    gradients = [parameters_to_proto(ndarrays_to_parameters(x)) for x in ins]
+    return ServerMessage.GetContributionsIns(gradients=gradients)
+
+def get_contributions_ins_from_proto(
+    msg: ServerMessage.GetContributionsIns
+):
+    """Deserialize `GetContributionsIns` from ProtoBuf."""
+    gradients = [parameters_to_ndarrays(parameters_from_proto(x)) for x in msg.gradients ]
+    return gradients
+
+def get_contributions_res_to_proto(
+    res
+) -> ClientMessage.GetContributionsRes:
+    """Serialize `GetContributionsRes` to ProtoBuf."""
+    return ClientMessage.GetContributionsRes(
+        contributions=res
+    )
+
+def get_contributions_res_from_proto(
+    msg: ClientMessage.GetContributionsRes
+):
+    """Deserialize `GetContributionsRes` from ProtoBuf."""
+    return msg.contributions
+    
+    
 # === GetGradients messages ===
 
 

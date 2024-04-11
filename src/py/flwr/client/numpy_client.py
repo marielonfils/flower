@@ -284,6 +284,9 @@ class NumPyClient(ABC):
         response = "Here you go Alice!"
         answer = sum(l)
         return response, answer
+        
+    def identify(self):
+        return False
 
 
 def has_get_properties(client: NumPyClient) -> bool:
@@ -316,6 +319,10 @@ def has_evaluate(client: NumPyClient) -> bool:
 def has_evaluate_enc(client: NumPyClient) -> bool:
     """Check if NumPyClient implements evaluate_enc."""
     return type(client).evaluate_enc != NumPyClient.evaluate_enc
+    
+def has_identify(client: NumPyClient) -> bool:
+    """Check if NumPyClient implements evaluate_enc."""
+    return callable(getattr(client, "identify", None))
 
 def has_example_response(client: NumPyClient) -> bool:
     return callable(getattr(client, "example_response", None))
@@ -457,6 +464,8 @@ def _set_state(self: Client, state: RunState) -> None:
     """Apply state to underlying NumPyClient."""
     self.numpy_client.set_state(state)  # type: ignore
 
+def _identify(self):
+    return self.numpy_client.identify()
 
 def _wrap_numpy_client(client: NumPyClient) -> Client:
     member_dict: Dict[str, Callable] = {  # type: ignore
@@ -490,6 +499,9 @@ def _wrap_numpy_client(client: NumPyClient) -> Client:
 
     if has_example_response(client=client):
         member_dict["example_response"] = _example_response
+        
+    if has_identify(client=client):
+        member_dict["identify"] = _identify
 
     # Create wrapper class
     wrapper_class = type("NumPyClientWrapper", (Client,), member_dict)
