@@ -41,6 +41,24 @@ def aggregate(results: List[Tuple[NDArrays, int]]) -> NDArrays:
     ]
     return weights_prime
 
+def aggregate2(results: List[Tuple[NDArrays, int]],nclients) -> NDArrays:
+    """Compute weighted average."""
+    # Calculate the total number of examples used during training
+    num_examples_total = sum([num_examples for _, num_examples in results])
+
+    # Create a list of weights, each multiplied by the related number of examples
+    weighted_weights = [
+        [layer for layer in weights] for weights, num_examples  in results
+        #[layer * num_examples for layer in weights] for weights, num_examples in results
+    ]
+
+    # Compute average weights of each layer
+    weights_prime: NDArrays = [
+        reduce(np.add, layer_updates) /nclients#/ num_examples_total
+        for layer_updates in zip(*weighted_weights)
+    ]
+    return weights_prime
+
 def mean(results: List[Tuple[NDArrays, int]], aggregate_fn,init) -> NDArrays:
     """Applies aggregate_fn to the results beginning with init."""
     sum = reduce(aggregate_fn, results,init)    
@@ -65,6 +83,33 @@ def aggregate_inplace(results: List[Tuple[ClientProxy, FitRes]]) -> NDArrays:
     for i, (_, fit_res) in enumerate(results[1:]):
         res = (
             scaling_factors[i + 1] * x
+            for x in parameters_to_ndarrays(fit_res.parameters)
+        )
+        params = [reduce(np.add, layer_updates) for layer_updates in zip(params, res)]
+
+    return params
+
+def aggregate_inplace2(results: List[Tuple[ClientProxy, FitRes]],nclients) -> NDArrays:
+    """Compute in-place weighted average."""
+    # Count total examples
+    num_examples_total = sum([fit_res.num_examples for _, fit_res in results])
+
+    # Compute scaling factors for each result
+    #scaling_factors = [
+    #    fit_res.num_examples / num_examples_total for _, fit_res in results
+    #    #fit_res.num_examples / num_examples_total for _, fit_res in results
+    #]
+
+    # Let's do in-place aggregation
+    # Get first result, then add up each other
+    params = [
+        x/nclients for x in parameters_to_ndarrays(results[0][1].parameters)
+        #scaling_factors[0] * x for x in parameters_to_ndarrays(results[0][1].parameters)
+    ]
+    for i, (_, fit_res) in enumerate(results[1:]):
+        res = (
+            #scaling_factors[i + 1] * x
+            x/nclients
             for x in parameters_to_ndarrays(fit_res.parameters)
         )
         params = [reduce(np.add, layer_updates) for layer_updates in zip(params, res)]
