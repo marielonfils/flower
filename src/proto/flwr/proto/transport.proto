@@ -83,7 +83,7 @@ message ServerMessage {
   message IdentifyIns {}
   
   message GetContributionsIns{
-      repeated Parameters gradients = 1;
+      repeated bytes gradients = 1;
   }
   message SendSumIns{
     optional string status = 1;
@@ -179,14 +179,13 @@ message ClientMessage {
   }
   
   message GetGradientsRes {
-    Status status = 1;
-    Parameters gradients = 2;
+    bytes gradients = 1;
   }
   message IdentifyRes {
     int64 status = 1;
   }
   message GetContributionsRes{
-      repeated float contributions = 1;
+    repeated float contributions = 1;
   }
   oneof msg {
     DisconnectRes disconnect_res = 1;

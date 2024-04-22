@@ -310,23 +310,19 @@ def get_contributions_ins_to_proto(
     ins
 ) -> ServerMessage.GetContributionsIns:
     """Serialize `GetContributionsIns` to ProtoBuf."""
-    gradients = [parameters_to_proto(ndarrays_to_parameters(x)) for x in ins]
-    return ServerMessage.GetContributionsIns(gradients=gradients)
+    return ServerMessage.GetContributionsIns(gradients=ins)
 
 def get_contributions_ins_from_proto(
     msg: ServerMessage.GetContributionsIns
 ):
     """Deserialize `GetContributionsIns` from ProtoBuf."""
-    gradients = [parameters_to_ndarrays(parameters_from_proto(x)) for x in msg.gradients ]
-    return gradients
+    return msg.gradients
 
 def get_contributions_res_to_proto(
     res
 ) -> ClientMessage.GetContributionsRes:
     """Serialize `GetContributionsRes` to ProtoBuf."""
-    return ClientMessage.GetContributionsRes(
-        contributions=res
-    )
+    return ClientMessage.GetContributionsRes(contributions=res)
 
 def get_contributions_res_from_proto(
     msg: ClientMessage.GetContributionsRes
@@ -345,24 +341,16 @@ def get_gradients_ins_from_proto(msg:ServerMessage.GetGradientsIns):
     return 
 
 def get_gradients_res_to_proto(
-    res: typing.GetGradientsRes,
+    res,
 ) -> ClientMessage.GetGradientsRes:
     """Serialize `GetGradientsRes` to ProtoBuf."""
-    status_msg = status_to_proto(res.status)
-    if res.status.code == typing.Code.GET_PARAMETERS_NOT_IMPLEMENTED:
-        return ClientMessage.GetGradientsRes(status=status_msg)
-    gradients_proto = parameters_to_proto(res.gradients)
-    return ClientMessage.GetGradientsRes(
-        status=status_msg, gradients=gradients_proto
-    )
+    return ClientMessage.GetGradientsRes(gradients=res)
 
 def get_gradients_res_from_proto(
     msg: ClientMessage.GetGradientsRes,
-) -> typing.GetGradientsRes:
+):
     """Deserialize `GetGradientsRes` from ProtoBuf."""
-    status = status_from_proto(msg=msg.status)
-    gradients = parameters_from_proto(msg.gradients)
-    return typing.GetGradientsRes(status=status, gradients=gradients)
+    return msg.gradients
 
 
 # === Fit messages ===

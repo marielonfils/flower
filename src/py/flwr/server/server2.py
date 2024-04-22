@@ -192,7 +192,7 @@ class Server:
             len(results),
             len(failures),
         )
-        gradients = [parameters_to_ndarrays(x[1].gradients) for x in results]
+        gradients = [x[1] for x in results]
         ce_server = self._client_manager.ce_server
         client_instructions= [(ce_server, gradients)]
         results, failures = fn_clients(
@@ -208,7 +208,7 @@ class Server:
             len(results),
             len(failures),
         )
-        print(results)
+        print(results[0][1])
         return 
         
     def fit_round_enc(
@@ -868,6 +868,7 @@ def _handle_finished_future_after_fn(
     # Check if there was an exception
     failure = future.exception()
     if failure is not None:
+        print(failure)
         failures.append(failure)
         return
 
