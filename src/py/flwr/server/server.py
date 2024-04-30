@@ -31,6 +31,7 @@ from flwr.common import (
     ReconnectIns,
     Scalar,
     serde,
+    ndarrays_to_parameters,
 )
 from flwr.common.logger import log
 from flwr.common.typing import GetParametersIns
@@ -69,6 +70,8 @@ class Server:
         self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.max_workers: Optional[int] = None
         self.pk = None
+        self.clients = []
+        self.n = 0
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -82,11 +85,31 @@ class Server:
         """Return ClientManager."""
         return self._client_manager
 
+    def identify_ce_server(self, timeout: Optional[float]):
+        log(INFO, "Identify the CE server")
+        min_num_clients = self.strategy.min_available_clients
+        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
+        client_instructions= [(client, None) for client in clients]
+        results, failures = fn_clients(
+            client_fn=identify,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
+        for r in results:
+            if r[1] == 1:
+                self._client_manager.register_ce_server(r[0])
+            else:
+                self.clients.append(r[0])
+                
     # pylint: disable=too-many-locals
     def fit(self, num_rounds: int, timeout: Optional[float],length) -> History:
         """Run federated averaging for a number of rounds."""
         history = History()
 
+        # Identify ce server
+        self.identify_ce_server(timeout=timeout)
+        
         # Initialize parameters
         log(INFO, "Initializing global parameters")
         self.parameters = self._get_initial_parameters(timeout=timeout)
@@ -118,10 +141,12 @@ class Server:
         start_time = timeit.default_timer()
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
+            print("################### START FIT ROUND ##########################")
             res_fit = self.fit_round(
                 server_round=current_round,
                 timeout=timeout,
             )
+            print("################### FIT ROUND DONE ##########################")
             if res_fit is not None:
                 parameters_prime, fit_metrics, _ = res_fit  # fit_metrics_aggregated
                 if parameters_prime:
@@ -132,6 +157,7 @@ class Server:
 
             # Evaluate model using strategy implementation
             res_cen = self.strategy.evaluate(current_round, parameters=self.parameters)
+            print("################### EVALUATE ON SERVER DONE ##########################")
             if res_cen is not None:
                 loss_cen, metrics_cen = res_cen
                 log(
@@ -148,7 +174,9 @@ class Server:
                 )
 
             # Evaluate model on a sample of available clients
+            print("################### START EVALUATE ROUND ##########################")
             res_fed = self.evaluate_round(server_round=current_round, timeout=timeout)
+            print("################### EVALUATE ROUND DONE ##########################")
             if res_fed is not None:
                 loss_fed, evaluate_metrics_fed, _ = res_fed
                 if loss_fed is not None:
@@ -213,6 +241,75 @@ class Server:
         loss_aggregated, metrics_aggregated = aggregated_result
         return loss_aggregated, metrics_aggregated, (results, failures)
 
+    def compute_reputation(self, server_round, timeout):
+        clients = self._client_manager.all()
+        client_instructions= [(client, None) for client in clients]
+        results, failures = fn_clients(
+            client_fn=get_gradients,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
+        log(
+            DEBUG,
+            "gradients %s received %s results and %s failures",
+            server_round,
+            len(results),
+            len(failures),
+        )
+        clients_order = [r[0] for r in results]
+        gradients = [r[1] for r in results]
+        ce_server = self._client_manager.ce_server
+        client_instructions= [(ce_server, gradients)]
+        results, failures = fn_clients(
+            client_fn=get_contributions,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
+        log(
+            DEBUG,
+            "contributions %s received %s results and %s failures",
+            server_round,
+            len(results),
+            len(failures),
+        )
+        sv = results[0][1]
+        return {clients_order[i]:sv[i] for i in range(len(sv))}
+        
+    def eliminate_clients(self, shapley_values,server_round, timeout):
+        sorted_shapley_values = sorted(shapley_values.items(), key=lambda x:x[1])
+        threshold = -0.0
+        methodo = "delete"
+        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < threshold:
+           if methodo == "delete":
+               self._client_manager.unregister(sorted_shapley_values[0][0])
+               self.clients = self._client_manager.all()
+               self.n = len(self.clients)
+               self.strategy.min_fit_clients = self.n
+               self.strategy.min_evaluate_clients = self.n
+               self.strategy.min_available_clients = self.n
+               return True
+           elif methodo == "fool":
+               pass
+           else:
+               pass
+        return False
+    
+    def shapley_round(self, server_round: int, timeout: Optional[float]):
+        # send global parameters to the ce server
+        print("################### SEND BLOBAL PARAMETERS TO CE SERVER ####################")
+        instruction = EvaluateIns(parameters=self.parameters,config={})
+        evaluate_client(self._client_manager.ce_server, instruction, timeout)
+        # compute the reputation of each client
+        print("################### COMPUTE REPUTATION ON CE SERVER ####################")
+        shapley_values = self.compute_reputation(server_round, timeout)
+        # eliminate a client with a low shapley value
+        print("################### ELIMINATE CLIENTS WITH LOW SHAPLEY ####################")
+        changed = self.eliminate_clients(shapley_values,server_round, timeout)
+        print("################### END OF SHAPLEY ROUND "+ str(server_round) +"####################")
+        return changed
+            
     def fit_round(
         self,
         server_round: int,
@@ -252,20 +349,23 @@ class Server:
             len(results),
             len(failures),
         )
-
+        
+        changed = self.shapley_round(server_round, timeout)
+        if changed:
+            results = [x for x in results if x[0] in self.clients]
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
         ] = self.strategy.aggregate_fit2(self.n,server_round, results, failures)
-
+        print("################### AGGREGATE FIT DONE ##########################")
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
         all_clients = self._client_manager.all()
-        clients = [all_clients[k] for k in all_clients.keys()]
+        clients = [all_clients[k] for k in all_clients]
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
         _ = reconnect_clients(
@@ -293,7 +393,6 @@ class Server:
         return get_parameters_res.parameters
     
     def example_request(self, client: ClientProxy) -> Tuple[str, int]:
-        print("server-example-request")
         question = "Could you find the sum of the list, Bob?"
         l = [1, 2, 3]
         return client.request(question, l)
@@ -460,3 +559,67 @@ def _handle_finished_future_after_evaluate(
 
     # Not successful, client returned a result where the status code is not OK
     failures.append(result)
+    
+def fn_clients(
+    client_instructions: List[Tuple[ClientProxy, FitIns]],
+    client_fn,
+    max_workers: Optional[int],
+    timeout: Optional[float],
+) -> FitResultsAndFailures:
+    """Refine parameters concurrently on all selected clients."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        submitted_fs = {
+            executor.submit(client_fn, client_proxy, ins, timeout)
+            for client_proxy, ins in client_instructions
+        }
+        finished_fs, _ = concurrent.futures.wait(
+            fs=submitted_fs,
+            timeout=None,  # Handled in the respective communication stack
+        )
+
+    # Gather results
+    results: List[Tuple[ClientProxy, FitRes]] = []
+    failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]] = []
+    for future in finished_fs:
+        _handle_finished_future_after_fn(
+            future=future, results=results, failures=failures
+        )
+    return results, failures
+    
+def _handle_finished_future_after_fn(
+    future: concurrent.futures.Future,  # type: ignore
+    results: List[Tuple[ClientProxy, FitRes]],
+    failures: List[Union[Tuple[ClientProxy, FitRes], BaseException]],
+) -> None:
+    """Convert finished future into either a result or a failure."""
+    # Check if there was an exception
+    failure = future.exception()
+    if failure is not None:
+        failures.append(failure)
+        return
+
+    # Successfully received a result from a client
+    result: Tuple[ClientProxy, FitRes] = future.result()
+    _, res = result
+
+    results.append(result)
+    return
+    
+def get_gradients(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    get_gradients_res = client.get_gradients(timeout=timeout)
+    return client, get_gradients_res
+    
+def get_contributions(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    get_contribution_res = client.get_contributions(ins,timeout=timeout)
+    return client, get_contribution_res
+    
+def identify(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    status = client.identify(timeout=timeout)
+    return client, status
+    

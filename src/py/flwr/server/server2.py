@@ -19,7 +19,7 @@ import concurrent.futures
 import timeit
 from logging import DEBUG, INFO
 from typing import Dict, List, Optional, Tuple, Union
-
+import time
 from flwr.common import (
     Code,
     DisconnectRes,
@@ -60,6 +60,8 @@ ReconnectResultsAndFailures = Tuple[
     List[Union[Tuple[ClientProxy, DisconnectRes], BaseException]],
 ]
 
+METHODO = "delete_one"
+THRESHOLD = -1.0
 
 class Server:
     """Flower server."""
@@ -83,6 +85,7 @@ class Server:
         self.n_tot = 1
         self.length=0
         self.clients = None
+        self.client_mapping = None
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -152,7 +155,7 @@ class Server:
         """Get initial parameters from all of the available clients."""
         clients = self.clients
         if clients is None:
-            min_num_clients = self.strategy.min_available_clients        
+            min_num_clients = self.strategy.min_available_clients  
             clients = self._client_manager.sample(min_num_clients,min_num_clients)
         # Get initial parameters from all clients
         client_instructions= [(client, None) for client in clients]
@@ -172,12 +175,11 @@ class Server:
         parameters_aggregated, metrics_aggregated = aggregated_result
         if parameters_aggregated is None or len(failures)!=0:
             raise RuntimeError("Error while getting initial parameters")
-        parameters_aggregated= parameters_aggregated#*[1/self.n for _ in range(self.length)]
+        #parameters_aggregated= parameters_aggregated*(1/self.n)
         return parameters_aggregated
 
     def compute_reputation(self, server_round, timeout):
-        min_num_clients = self.strategy.min_available_clients
-        clients = self._client_manager.sample(min_num_clients,min_num_clients)
+        clients = self._client_manager.all()
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_fn=get_gradients,
@@ -192,7 +194,8 @@ class Server:
             len(results),
             len(failures),
         )
-        gradients = [x[1] for x in results]
+        clients_order = [r[0] for r in results]
+        gradients = [r[1] for r in results]
         ce_server = self._client_manager.ce_server
         client_instructions= [(ce_server, gradients)]
         results, failures = fn_clients(
@@ -208,8 +211,26 @@ class Server:
             len(results),
             len(failures),
         )
-        print(results[0][1])
-        return 
+        sv = results[0][1]
+        return {clients_order[i]:sv[i] for i in range(len(sv))}
+        
+    def eliminate_clients(self, shapley_values,server_round, timeout):
+        sorted_shapley_values = sorted(shapley_values.items(), key=lambda x:x[1])
+        
+        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < THRESHOLD:
+           if METHODO == "delete_one":
+               self._client_manager.unregister(sorted_shapley_values[0][0])
+               clients = self._client_manager.all()
+               self.strategy.min_fit_clients = self.n
+               self.strategy.min_evaluate_clients = self.n
+               self.strategy.min_available_clients = self.n
+               self.change_n(len(clients),clients,timeout)
+               return True
+           elif METHODO == "fool":
+               pass
+           else:
+               pass
+        return False
         
     def fit_round_enc(
         self,
@@ -264,8 +285,7 @@ class Server:
             Dict[str, Scalar],
         ] = self.strategy.aggregate(server_round, results, lambda x,y : x.add_share(y[1]),self.parameters,failures)
         
-        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n_tot), aggregated_ds[1]#*(1/self.n)
-        
+        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n), aggregated_ds[1]#*(1/self.n)
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
 
@@ -309,18 +329,22 @@ class Server:
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
             
         #send aggregated parameters to ce server
-        evaluate_client(self._client_manager.ce_server, EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={}) , timeout)
+        instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
+        evaluate_client(self._client_manager.ce_server, instruction, timeout)
         # compute the reputation of each client
-        self.compute_reputation(server_round, timeout)
-        if len(results2) != self.n:
-            self.change_n(len(results2),timeout)
+        changed = False
+        if True:
+            shapley_values = self.compute_reputation(server_round, timeout)
+            log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+            changed = self.eliminate_clients(shapley_values,server_round, timeout)
+            
+        if changed:
+            return None
         # Aggregate training results
-        
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
         ] = self.strategy.aggregate_fit_enc(server_round, results2[1:], lambda x,y : x.add(y[1][0]),results2[0][1], failures2) #**y[1][1].num_examples
-        
         parameters_aggregated, metrics_aggregated, self.n_tot = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
 
@@ -334,7 +358,6 @@ class Server:
         # distributed_fit : weighted average of clients results with received parameters
         # centralized : server result
         log(INFO, "Identify the CE server")
-        #here
         min_num_clients = self.strategy.min_available_clients
         clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
         client_instructions= [(client, None) for client in clients]
@@ -347,12 +370,13 @@ class Server:
         )
         for r in results:
             if r[1] == 1:
-                self._client_manager.unregister(r[0])
+                self._client_manager.register_ce_server(r[0])
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         log(INFO, "#################SET PK#################")
         pk_aggregated,self.n,self.clients = self.get_pk(timeout=timeout) #TODO fix timeout
+        self.client_mapping = {c.cid:i for i,c in enumerate(self.clients)}
         self.n_tot = self.n
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
@@ -403,13 +427,15 @@ class Server:
     def change_n(self,n, clients,timeout):
         self.n = n
         self.clients = clients
+        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60])
+        self.context.global_scale = 2**40
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         log(INFO, "#################SET PK#################")
         pk_aggregated, n, _ = self.get_pk(timeout=timeout) #TDO fix timeout
         if n != self.n:
             raise RuntimeError("Error while getting the public keys")
-        self.set_pk(pk_aggregated, timeout=timeout)
+        self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
         # Initialize parameters
         log(INFO, "#################GET PARAMETERS#################")
@@ -470,7 +496,7 @@ class Server:
             Dict[str, Scalar],
         ] = self.strategy.aggregate(server_round, results, lambda x,y : x.add_share(y[1]),self.parameters,failures)
         
-        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n_tot), aggregated_ds[1] #*(1/self.n)
+        parameters_aggregated, metrics_aggregated = aggregated_ds[0]*(1/self.n), aggregated_ds[1] #*(1/self.n)
         # Evaluate model using strategy implementation
         self.evaluate_enc(parameters_aggregated,server_round-1,start_time,history)
 
@@ -542,7 +568,6 @@ class Server:
         
         if aggregated_result is not None:
             loss_fed, evaluate_metrics_fed = aggregated_result
-            print("metrics",evaluate_metrics_fed)
             if loss_fed is not None:
                 history.add_loss_distributed(
                     server_round=server_round, loss=loss_fed
@@ -651,8 +676,7 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
-        all_clients = self._client_manager.all()
-        clients = [all_clients[k] for k in all_clients.keys()]
+        clients = self._client_manager.all()
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
         _ = reconnect_clients(
@@ -660,6 +684,8 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
+        instruction = ReconnectIns(seconds=None)
+        _ = reconnect_client(self._client_manager.ce_server, instruction, timeout)
 
     def _get_initial_parameters(self, timeout: Optional[float]) -> Parameters:
         """Get initial parameters from one of the available clients."""
@@ -868,7 +894,6 @@ def _handle_finished_future_after_fn(
     # Check if there was an exception
     failure = future.exception()
     if failure is not None:
-        print(failure)
         failures.append(failure)
         return
 

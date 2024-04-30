@@ -51,7 +51,8 @@ from flwr.server.fleet.grpc_bidi.grpc_server import (
 )
 from flwr.server.fleet.grpc_rere.fleet_servicer import FleetServicer
 from flwr.server.history import History
-from flwr.server.server2 import Server
+from flwr.server.server import Server
+from flwr.server.server2 import Server as ServerEnc
 from flwr.server.state import StateFactory
 from flwr.server.strategy import FedAvg, Strategy
 
@@ -85,6 +86,7 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
     client_manager: Optional[ClientManager] = None,
     grpc_max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
     certificates: Optional[Tuple[bytes, bytes, bytes]] = None,
+    enc = False
 ) -> History:
     """Start a Flower server using the gRPC transport layer.
 
@@ -160,6 +162,7 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
         config=config,
         strategy=strategy,
         client_manager=client_manager,
+        enc=enc,
     )
     log(
         INFO,
@@ -201,6 +204,7 @@ def init_defaults(
     config: Optional[ServerConfig],
     strategy: Optional[Strategy],
     client_manager: Optional[ClientManager],
+    enc,
 ) -> Tuple[Server, ServerConfig]:
     """Create server instance if none was given."""
     if server is None:
@@ -208,7 +212,10 @@ def init_defaults(
             client_manager = SimpleClientManager()
         if strategy is None:
             strategy = FedAvg()
-        server = Server(client_manager=client_manager, strategy=strategy)
+        if enc:
+            server = ServerEnc(client_manager=client_manager, strategy=strategy)
+        else:
+            server = Server(client_manager=client_manager, strategy=strategy)
     elif strategy is not None:
         log(WARN, "Both server and strategy were provided, ignoring strategy")
 

@@ -72,21 +72,6 @@ class GrpcClientProxy(ClientProxy):
             client_msg.get_parameters_res
         )
         return get_parameters_res
-        
-    def get_gradients(
-        self,
-        timeout: Optional[float],
-    ):
-        get_gradients_ins_msg = serde.get_gradients_ins_to_proto()
-        res_wrapper: ResWrapper = self.bridge.request(
-            ins_wrapper=InsWrapper(
-                server_message=ServerMessage(get_gradients_ins=get_gradients_ins_msg),
-                timeout=timeout,
-            )
-        )
-        client_msg: ClientMessage = res_wrapper.client_message
-        get_gradients_res = serde.get_gradients_res_from_proto(client_msg.get_gradients_res)
-        return get_gradients_res
 
     def fit(
         self,
@@ -259,6 +244,24 @@ class GrpcClientProxy(ClientProxy):
         client_msg: ClientMessage = res_wrapper.client_message
         response, answer = serde.example_res_from_proto(client_msg.send_val_res)
         return response, answer
+        
+    def get_gradients(
+        self,
+        timeout: Optional[float],
+    ):
+        get_gradients_ins_msg = serde.get_gradients_ins_to_proto()
+
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(get_gradients_ins=get_gradients_ins_msg),
+                timeout=timeout,
+            )
+        )
+
+        client_msg: ClientMessage = res_wrapper.client_message
+        get_gradients_res = serde.get_gradients_res_from_proto(client_msg.get_gradients_res)
+
+        return get_gradients_res
         
     def identify(
         self,
