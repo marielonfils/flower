@@ -24,7 +24,6 @@ from flwr.client.client import (
     maybe_call_fit,
     maybe_call_fit_enc,
     maybe_call_get_parameters,
-    maybe_call_get_gradients,
     maybe_call_get_properties,
 )
 from flwr.client.message_handler.task_handler import (
@@ -173,8 +172,6 @@ def handle_legacy_message(
         message = _get_properties(client, server_msg.get_properties_ins)
     if field == "get_parameters_ins":
         message = _get_parameters(client, server_msg.get_parameters_ins)
-    if field == "get_gradients_ins":
-        message = _get_gradients(client, server_msg.get_gradients_ins)
     if field == "fit_ins":
         message = _fit(client, server_msg.fit_ins)
     if field == "evaluate_ins":
@@ -193,6 +190,8 @@ def handle_legacy_message(
         message = _fit_enc(client, server_msg.send_ds_ins)
     if field == "identify_ins":
         message = _identify(client, server_msg.identify_ins)
+    if field == "get_gradients_ins":
+        message = _get_gradients(client, server_msg.get_gradients_ins)
     if field == "get_contributions_ins":
         message = _get_contributions(client, server_msg.get_contributions_ins)
     if server_msg.HasField("send_sum_ins"):
@@ -247,22 +246,6 @@ def _get_parameters(
     # Serialize response
     get_parameters_res_proto = serde.get_parameters_res_to_proto(get_parameters_res)
     return ClientMessage(get_parameters_res=get_parameters_res_proto)
-
-
-def _get_gradients(
-    client: Client, get_gradients_msg: ServerMessage.GetGradientsIns
-) -> ClientMessage:
-    # Deserialize `get_gradients` instruction
-    get_gradients_ins = serde.get_gradients_ins_from_proto(get_gradients_msg)
-
-    # Request gradients
-    get_gradients_res = maybe_call_get_gradients(
-        client=client,
-    )
-
-    # Serialize response
-    get_gradients_res_proto = serde.get_gradients_res_to_proto(get_gradients_res)
-    return ClientMessage(get_gradients_res=get_gradients_res_proto)
     
     
 def _fit(client: Client, fit_msg: ServerMessage.FitIns) -> ClientMessage:
@@ -395,6 +378,21 @@ def _identify(client: Client, msg: ServerMessage.IdentifyIns) -> ClientMessage:
     identify_res = ClientMessage.IdentifyRes(status=status)
     return ClientMessage(identify_res=identify_res)
 
+
+def _get_gradients(
+    client: Client, get_gradients_msg: ServerMessage.GetGradientsIns
+) -> ClientMessage:
+    # Deserialize `get_gradients` instruction
+    get_gradients_ins = serde.get_gradients_ins_from_proto(get_gradients_msg)
+
+    # Request gradients
+    gradients = client.numpy_client.get_gradients()
+    
+    # Serialize response
+    get_gradients_res_proto = serde.get_gradients_res_to_proto(gradients)
+    return ClientMessage(get_gradients_res=get_gradients_res_proto)
+    
+    
 def _get_contributions(
     client: Client, get_contributions_msg: ServerMessage.GetContributionsIns
 ) -> ClientMessage:

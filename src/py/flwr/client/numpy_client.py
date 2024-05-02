@@ -38,8 +38,6 @@ from flwr.common.typing import (
     GetParametersRes,
     GetPropertiesIns,
     GetPropertiesRes,
-    GetGradientsIns,
-    GetGradientsRes,
     Status,
 )
 from flwr.proto.transport_pb2 import ClientMessage, ServerMessage
@@ -112,23 +110,6 @@ class NumPyClient(ABC):
             The local model parameters as a list of NumPy ndarrays.
         """
         _ = (self, config)
-        return []
-        
-    def get_gradients(self) -> NDArrays:
-        """Return the current local model parameters.
-
-        Parameters
-        ----------
-        config : Config
-            Configuration parameters requested by the server.
-            This can be used to tell the client which parameters
-            are needed along with some Scalar attributes.
-
-        Returns
-        -------
-        parameters : NDArrays
-            The local model parameters as a list of NumPy ndarrays.
-        """
         return []
 
     def fit(
@@ -297,11 +278,6 @@ def has_get_properties(client: NumPyClient) -> bool:
 def has_get_parameters(client: NumPyClient) -> bool:
     """Check if NumPyClient implements get_parameters."""
     return type(client).get_parameters != NumPyClient.get_parameters
-    
-def has_get_gradients(client: NumPyClient) -> bool:
-    """Check if NumPyClient implements get_gradients."""
-    return type(client).get_gradients != NumPyClient.get_gradients
-
 
 def has_fit(client: NumPyClient) -> bool:
     """Check if NumPyClient implements fit."""
@@ -347,14 +323,6 @@ def _get_parameters(self: Client, ins: GetParametersIns) -> GetParametersRes:
     parameters_proto = ndarrays_to_parameters(parameters)
     return GetParametersRes(
         status=Status(code=Code.OK, message="Success"), parameters=parameters_proto
-    )
-    
-def _get_gradients(self: Client) -> GetGradientsRes:
-    """Return the current local model gradients."""
-    gradients = self.numpy_client.get_gradients()  # type: ignore
-    gradients_proto = ndarrays_to_parameters(gradients)
-    return GetGradientsRes(
-        status=Status(code=Code.OK, message="Success"), gradients=gradients_proto
     )
 
 
@@ -481,9 +449,6 @@ def _wrap_numpy_client(client: NumPyClient) -> Client:
 
     if has_get_parameters(client=client):
         member_dict["get_parameters"] = _get_parameters
-        
-    if has_get_gradients(client=client):
-        member_dict["get_gradients"] = _get_gradients
 
     if has_fit(client=client):
         member_dict["fit"] = _fit

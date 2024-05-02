@@ -362,11 +362,11 @@ class ServerMessage(google.protobuf.message.Message):
 
         GRADIENTS_FIELD_NUMBER: builtins.int
         @property
-        def gradients(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___Parameters]: ...
+        def gradients(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.bytes]: ...
         def __init__(
             self,
             *,
-            gradients: collections.abc.Iterable[global___Parameters] | None = ...,
+            gradients: collections.abc.Iterable[builtins.bytes] | None = ...,
         ) -> None: ...
         def ClearField(self, field_name: typing_extensions.Literal["gradients", b"gradients"]) -> None: ...
 
@@ -833,20 +833,14 @@ class ClientMessage(google.protobuf.message.Message):
     class GetGradientsRes(google.protobuf.message.Message):
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-        STATUS_FIELD_NUMBER: builtins.int
         GRADIENTS_FIELD_NUMBER: builtins.int
-        @property
-        def status(self) -> global___Status: ...
-        @property
-        def gradients(self) -> global___Parameters: ...
+        gradients: builtins.bytes
         def __init__(
             self,
             *,
-            status: global___Status | None = ...,
-            gradients: global___Parameters | None = ...,
+            gradients: builtins.bytes = ...,
         ) -> None: ...
-        def HasField(self, field_name: typing_extensions.Literal["gradients", b"gradients", "status", b"status"]) -> builtins.bool: ...
-        def ClearField(self, field_name: typing_extensions.Literal["gradients", b"gradients", "status", b"status"]) -> None: ...
+        def ClearField(self, field_name: typing_extensions.Literal["gradients", b"gradients"]) -> None: ...
 
     @typing_extensions.final
     class IdentifyRes(google.protobuf.message.Message):
