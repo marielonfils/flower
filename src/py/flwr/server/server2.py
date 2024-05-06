@@ -61,7 +61,7 @@ ReconnectResultsAndFailures = Tuple[
 ]
 
 METHODO = "delete_one"
-THRESHOLD = -1.0
+THRESHOLD = -0.1
 
 class Server:
     """Flower server."""
@@ -216,7 +216,6 @@ class Server:
         
     def eliminate_clients(self, shapley_values,server_round, timeout):
         sorted_shapley_values = sorted(shapley_values.items(), key=lambda x:x[1])
-        
         if len(shapley_values) > 2 and sorted_shapley_values[0][1] < THRESHOLD:
            if METHODO == "delete_one":
                self._client_manager.unregister(sorted_shapley_values[0][0])
@@ -676,6 +675,7 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
+        self._client_manager.register(self._client_manager.ce_server)
         clients = self._client_manager.all()
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
@@ -684,8 +684,6 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
-        instruction = ReconnectIns(seconds=None)
-        _ = reconnect_client(self._client_manager.ce_server, instruction, timeout)
 
     def _get_initial_parameters(self, timeout: Optional[float]) -> Parameters:
         """Get initial parameters from one of the available clients."""

@@ -40,6 +40,9 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.server.history import History
 from flwr.server.strategy import FedAvg, Strategy
 
+THRESHOLD = -0.1
+METHODO = "delete"
+        
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
     List[Union[Tuple[ClientProxy, FitRes], BaseException]],
@@ -71,6 +74,7 @@ class Server:
         self.max_workers: Optional[int] = None
         self.pk = None
         self.clients = []
+        self.client_mapping = None
         self.n = 0
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
@@ -101,6 +105,7 @@ class Server:
                 self._client_manager.register_ce_server(r[0])
             else:
                 self.clients.append(r[0])
+        self.client_mapping = {c.cid:i for i,c in enumerate(self.clients)}
                 
     # pylint: disable=too-many-locals
     def fit(self, num_rounds: int, timeout: Optional[float],length) -> History:
@@ -279,10 +284,8 @@ class Server:
         
     def eliminate_clients(self, shapley_values,server_round, timeout):
         sorted_shapley_values = sorted(shapley_values.items(), key=lambda x:x[1])
-        threshold = -0.0
-        methodo = "delete"
-        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < threshold:
-           if methodo == "delete":
+        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < THRESHOLD:
+           if METHODO == "delete":
                self._client_manager.unregister(sorted_shapley_values[0][0])
                self.clients = self._client_manager.all()
                self.n = len(self.clients)
@@ -290,7 +293,7 @@ class Server:
                self.strategy.min_evaluate_clients = self.n
                self.strategy.min_available_clients = self.n
                return True
-           elif methodo == "fool":
+           elif METHODO == "fool":
                pass
            else:
                pass
@@ -304,6 +307,7 @@ class Server:
         # compute the reputation of each client
         print("################### COMPUTE REPUTATION ON CE SERVER ####################")
         shapley_values = self.compute_reputation(server_round, timeout)
+        log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
         # eliminate a client with a low shapley value
         print("################### ELIMINATE CLIENTS WITH LOW SHAPLEY ####################")
         changed = self.eliminate_clients(shapley_values,server_round, timeout)
@@ -364,8 +368,8 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
-        all_clients = self._client_manager.all()
-        clients = [all_clients[k] for k in all_clients]
+        self._client_manager.register(self._client_manager.ce_server)
+        clients = self._client_manager.all()
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
         _ = reconnect_clients(
