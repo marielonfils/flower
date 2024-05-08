@@ -335,6 +335,8 @@ class Server:
         if True:
             shapley_values = self.compute_reputation(server_round, timeout)
             log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+            with open("shapleys_enc.txt","w") as f:
+                f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
             changed = self.eliminate_clients(shapley_values,server_round, timeout)
             
         if changed:
