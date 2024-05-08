@@ -70,6 +70,7 @@ class Server:
         self,
         *,
         client_manager: ClientManager,
+        contribution: bool = True,
         strategy: Optional[Strategy] = None,
     ) -> None:
         self._client_manager: ClientManager = client_manager
@@ -86,6 +87,7 @@ class Server:
         self.length=0
         self.clients = None
         self.client_mapping = None
+        self.ce = contribution
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -328,19 +330,20 @@ class Server:
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
             
         #send aggregated parameters to ce server
-        instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
-        evaluate_client(self._client_manager.ce_server, instruction, timeout)
-        # compute the reputation of each client
-        changed = False
-        if True:
-            shapley_values = self.compute_reputation(server_round, timeout)
-            log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
-            with open("shapleys_enc.txt","w") as f:
-                f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
-            changed = self.eliminate_clients(shapley_values,server_round, timeout)
+        if self.ce:
+            instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
+            evaluate_client(self._client_manager.ce_server, instruction, timeout)
+            # compute the reputation of each client
+            changed = False
+            if True:
+                shapley_values = self.compute_reputation(server_round, timeout)
+                log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+                with open("shapleys_enc.txt","w") as f:
+                    f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+                changed = self.eliminate_clients(shapley_values,server_round, timeout)
             
-        if changed:
-            return None
+            if changed:
+                    return None
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
@@ -358,20 +361,23 @@ class Server:
         # distributed : weighted average of clients results with new parameters
         # distributed_fit : weighted average of clients results with received parameters
         # centralized : server result
-        log(INFO, "Identify the CE server")
-        min_num_clients = self.strategy.min_available_clients
-        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
-        client_instructions= [(client, None) for client in clients]
-        
-        results, failures = fn_clients(
-            client_fn=identify,
-            client_instructions=client_instructions,
-            max_workers=self.max_workers,
-            timeout=timeout,
-        )
-        for r in results:
-            if r[1] == 1:
-                self._client_manager.register_ce_server(r[0])
+
+        if self.ce:
+            log(INFO, "Identify the CE server")
+            min_num_clients = self.strategy.min_available_clients
+            clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
+            client_instructions= [(client, None) for client in clients]
+            
+            results, failures = fn_clients(
+                client_fn=identify,
+                client_instructions=client_instructions,
+                max_workers=self.max_workers,
+                timeout=timeout,
+            )
+            for r in results:
+                if r[1] == 1:
+                    self._client_manager.register_ce_server(r[0])
+                    log(INFO, f"&&&&CE server identified{ self._client_manager.ce_server}")
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
@@ -677,7 +683,8 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
-        self._client_manager.register(self._client_manager.ce_server)
+        if self.ce:
+            self._client_manager.register(self._client_manager.ce_server)
         clients = self._client_manager.all()
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]

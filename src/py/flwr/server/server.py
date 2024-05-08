@@ -64,6 +64,7 @@ class Server:
         self,
         *,
         client_manager: ClientManager,
+        contribution: bool = True,
         strategy: Optional[Strategy] = None,
     ) -> None:
         self._client_manager: ClientManager = client_manager
@@ -76,6 +77,7 @@ class Server:
         self.clients = []
         self.client_mapping = None
         self.n = 0
+        self.ce=contribution
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -113,8 +115,9 @@ class Server:
         history = History()
 
         # Identify ce server
-        self.identify_ce_server(timeout=timeout)
-        
+        if self.ce:
+            self.identify_ce_server(timeout=timeout)
+            
         # Initialize parameters
         log(INFO, "Initializing global parameters")
         self.parameters = self._get_initial_parameters(timeout=timeout)
@@ -355,10 +358,10 @@ class Server:
             len(results),
             len(failures),
         )
-        
-        changed = self.shapley_round(server_round, timeout)
-        if changed:
-            results = [x for x in results if x[0] in self.clients]
+        if self.ce:
+            changed = self.shapley_round(server_round, timeout)
+            if changed:
+                results = [x for x in results if x[0] in self.clients]
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
@@ -370,7 +373,8 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
-        self._client_manager.register(self._client_manager.ce_server)
+        if self.ce:
+            self._client_manager.register(self._client_manager.ce_server)
         clients = self._client_manager.all()
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
