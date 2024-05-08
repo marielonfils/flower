@@ -301,13 +301,15 @@ class Server:
     
     def shapley_round(self, server_round: int, timeout: Optional[float]):
         # send global parameters to the ce server
-        print("################### SEND BLOBAL PARAMETERS TO CE SERVER ####################")
+        print("################### SEND GLOBAL PARAMETERS TO CE SERVER ####################")
         instruction = EvaluateIns(parameters=self.parameters,config={})
         evaluate_client(self._client_manager.ce_server, instruction, timeout)
         # compute the reputation of each client
         print("################### COMPUTE REPUTATION ON CE SERVER ####################")
         shapley_values = self.compute_reputation(server_round, timeout)
         log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+        with open("shapleys.txt","w") as f:
+            f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
         # eliminate a client with a low shapley value
         print("################### ELIMINATE CLIENTS WITH LOW SHAPLEY ####################")
         changed = self.eliminate_clients(shapley_values,server_round, timeout)
