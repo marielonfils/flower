@@ -335,7 +335,7 @@ class Server:
         if True:
             shapley_values = self.compute_reputation(server_round, timeout)
             log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
-            with open("shapleys_enc.txt","w") as f:
+            with open("shapleys_enc.txt","a") as f:
                 f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
             changed = self.eliminate_clients(shapley_values,server_round, timeout)
             
@@ -358,11 +358,17 @@ class Server:
         # distributed : weighted average of clients results with new parameters
         # distributed_fit : weighted average of clients results with received parameters
         # centralized : server result
+        
         log(INFO, "Identify the CE server")
         min_num_clients = self.strategy.min_available_clients
         clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
         client_instructions= [(client, None) for client in clients]
         
+        with open("shapleys_enc.txt","a") as f:
+            f.write("Start experiment with " + str(num_rounds) + " rounds and " + str(min_num_clients) + " clients\n")
+            f.write("Methodology is: " + METHODO + "\n")
+            f.write("Threshold is: " + str(THRESHOLD) + "\n")
+            
         results, failures = fn_clients(
             client_fn=identify,
             client_instructions=client_instructions,
