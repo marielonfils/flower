@@ -117,7 +117,12 @@ class Server:
         # Identify ce server
         if self.ce:
             self.identify_ce_server(timeout=timeout)
-            
+        
+            with open("shapleys.txt","a") as f:
+                f.write("Start experiment with " + str(num_rounds) + " rounds and " + str(self.strategy.min_available_clients) + " clients\n")
+                f.write("Methodology is: " + METHODO + "\n")
+                f.write("Threshold is: " + str(THRESHOLD) + "\n")
+                
         # Initialize parameters
         log(INFO, "Initializing global parameters")
         self.parameters = self._get_initial_parameters(timeout=timeout)
@@ -311,7 +316,7 @@ class Server:
         print("################### COMPUTE REPUTATION ON CE SERVER ####################")
         shapley_values = self.compute_reputation(server_round, timeout)
         log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
-        with open("shapleys.txt","w") as f:
+        with open("shapleys.txt","a") as f:
             f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
         # eliminate a client with a low shapley value
         print("################### ELIMINATE CLIENTS WITH LOW SHAPLEY ####################")
