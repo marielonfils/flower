@@ -39,9 +39,6 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.history import History
 from flwr.server.strategy import FedAvg, Strategy
-
-THRESHOLD = -0.1
-METHODO = "delete"
         
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
@@ -65,6 +62,8 @@ class Server:
         *,
         client_manager: ClientManager,
         strategy: Optional[Strategy] = None,
+        methodo, 
+        threshold,
     ) -> None:
         self._client_manager: ClientManager = client_manager
         self.parameters: Parameters = Parameters(
@@ -76,6 +75,8 @@ class Server:
         self.clients = []
         self.client_mapping = None
         self.n = 0
+        self.methodo = methodo
+        self.threshold = threshold
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -117,8 +118,8 @@ class Server:
         
         with open("shapleys.txt","a") as f:
             f.write("Start experiment with " + str(num_rounds) + " rounds and " + str(self.strategy.min_available_clients) + " clients\n")
-            f.write("Methodology is: " + METHODO + "\n")
-            f.write("Threshold is: " + str(THRESHOLD) + "\n")
+            f.write("Methodology is: " + self.methodo + "\n")
+            f.write("Threshold is: " + str(self.threshold) + "\n")
             
         # Initialize parameters
         log(INFO, "Initializing global parameters")
@@ -252,7 +253,7 @@ class Server:
         return loss_aggregated, metrics_aggregated, (results, failures)
 
     def compute_reputation(self, server_round, timeout):
-        clients = self._client_manager.all()
+        clients = self.clients + list(self._client_manager.waiting.values())
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_fn=get_gradients,
@@ -287,21 +288,46 @@ class Server:
         sv = results[0][1]
         return {clients_order[i]:sv[i] for i in range(len(sv))}
         
+    def update_n(self):
+        self.n = len(self.clients)
+        self.strategy.min_fit_clients = self.n
+        self.strategy.min_evaluate_clients = self.n
+        self.strategy.min_available_clients = self.n
+        return 
+        
+    def set_aside_clients(self, SVs, timeout):
+        changed = False
+        for sv in SVs:
+            if sv[0] not in self.clients and sv[1] > self.threshold:
+                self.clients = self._client_manager.reregister(sv[0])
+                self.update_n()
+                changed = True
+        for sv in SVs:
+            if len(self.clients) > 2 and sv[0] in self.clients and sv[1] < self.threshold:
+                self.clients = self._client_manager.set_aside(sv[0])
+                self.update_n()
+                changed = True
+        return changed
+        
     def eliminate_clients(self, shapley_values,server_round, timeout):
         sorted_shapley_values = sorted(shapley_values.items(), key=lambda x:x[1])
-        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < THRESHOLD:
-           if METHODO == "delete":
-               self._client_manager.unregister(sorted_shapley_values[0][0])
-               self.clients = self._client_manager.all()
-               self.n = len(self.clients)
-               self.strategy.min_fit_clients = self.n
-               self.strategy.min_evaluate_clients = self.n
-               self.strategy.min_available_clients = self.n
-               return True
-           elif METHODO == "fool":
-               pass
-           else:
-               pass
+        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < self.threshold:
+            if self.methodo == "delete_one":
+                self.clients = self._client_manager.eliminate(sorted_shapley_values[0][0])
+                self.update_n()
+                return True
+            elif self.methodo == "delete":
+                sv = 0
+                while self.n > 2 and sorted_shapley_values[sv][1] < self.threshold:
+                    self.clients = self._client_manager.eliminate(sorted_shapley_values[sv][0])
+                    self.update_n()
+                    sv += 1
+                return True
+            elif self.methodo == "set_aside":
+                changed = self.set_aside_clients(sorted_shapley_values, timeout)
+                return changed
+            else:
+                return False
         return False
     
     def shapley_round(self, server_round: int, timeout: Optional[float]):
@@ -314,7 +340,7 @@ class Server:
         shapley_values = self.compute_reputation(server_round, timeout)
         log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
         with open("shapleys.txt","a") as f:
-            f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+            f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values])+"\n")
         # eliminate a client with a low shapley value
         print("################### ELIMINATE CLIENTS WITH LOW SHAPLEY ####################")
         changed = self.eliminate_clients(shapley_values,server_round, timeout)
@@ -375,8 +401,8 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
-        self._client_manager.register(self._client_manager.ce_server)
-        clients = self._client_manager.all()
+        all_clients = self._client_manager.all()
+        clients = [all_clients[k] for k in all_clients.keys()]
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
         _ = reconnect_clients(

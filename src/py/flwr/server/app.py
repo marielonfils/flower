@@ -86,7 +86,9 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
     client_manager: Optional[ClientManager] = None,
     grpc_max_message_length: int = GRPC_MAX_MESSAGE_LENGTH,
     certificates: Optional[Tuple[bytes, bytes, bytes]] = None,
-    enc = False
+    enc = False,
+    methodo = "",
+    threshold = -1.0
 ) -> History:
     """Start a Flower server using the gRPC transport layer.
 
@@ -163,6 +165,8 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
         strategy=strategy,
         client_manager=client_manager,
         enc=enc,
+        methodo = methodo,
+        threshold = threshold
     )
     log(
         INFO,
@@ -205,6 +209,8 @@ def init_defaults(
     strategy: Optional[Strategy],
     client_manager: Optional[ClientManager],
     enc,
+    methodo,
+    threshold
 ) -> Tuple[Server, ServerConfig]:
     """Create server instance if none was given."""
     if server is None:
@@ -213,9 +219,9 @@ def init_defaults(
         if strategy is None:
             strategy = FedAvg()
         if enc:
-            server = ServerEnc(client_manager=client_manager, strategy=strategy)
+            server = ServerEnc(client_manager=client_manager, strategy=strategy, methodo=methodo, threshold=threshold)
         else:
-            server = Server(client_manager=client_manager, strategy=strategy)
+            server = Server(client_manager=client_manager, strategy=strategy, methodo=methodo, threshold=threshold)
     elif strategy is not None:
         log(WARN, "Both server and strategy were provided, ignoring strategy")
 
