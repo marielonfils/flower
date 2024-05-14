@@ -93,7 +93,9 @@ class Server:
     def identify_ce_server(self, timeout: Optional[float]):
         log(INFO, "Identify the CE server")
         min_num_clients = self.strategy.min_available_clients
-        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
+        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1,timeout = 300)
+        if clients == []:
+            return -1
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_fn=identify,
@@ -107,6 +109,7 @@ class Server:
             else:
                 self.clients.append(r[0])
         self.client_mapping = {c.cid:i for i,c in enumerate(self.clients)}
+        return 0
                 
     # pylint: disable=too-many-locals
     def fit(self, num_rounds: int, timeout: Optional[float],length) -> History:
@@ -114,7 +117,8 @@ class Server:
         history = History()
 
         # Identify ce server
-        self.identify_ce_server(timeout=timeout)
+        if self.identify_ce_server(timeout=timeout):
+            return history
         
         with open("shapleys.txt","a") as f:
             f.write("Start experiment with " + str(num_rounds) + " rounds and " + str(self.strategy.min_available_clients) + " clients\n")

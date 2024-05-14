@@ -387,7 +387,9 @@ class Server:
         
         log(INFO, "Identify the CE server")
         min_num_clients = self.strategy.min_available_clients
-        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
+        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1,timeout = 300)
+        if clients == []:
+            return history
         client_instructions= [(client, None) for client in clients]
         
         with open("shapleys_enc.txt","a") as f:
