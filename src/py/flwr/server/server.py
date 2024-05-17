@@ -140,11 +140,12 @@ class Server:
                 )
         self.n = self.strategy.min_available_clients
         if res is not None:
+            c = {k: v for k, v in res[1].items() if k!="predictions"}
             log(
                 INFO,
                 "initial parameters (loss, other metrics): %s, %s",
                 res[0],
-                res[1],
+                c,#res[1],
             )
             history.add_loss_centralized(server_round=0, loss=res[0])
             history.add_metrics_centralized(server_round=0, metrics=res[1])
@@ -173,12 +174,13 @@ class Server:
             print("################### EVALUATE ON SERVER DONE ##########################")
             if res_cen is not None:
                 loss_cen, metrics_cen = res_cen
+                c = {k: v for k, v in metrics_cen.items() if k!="predictions"}
                 log(
                     INFO,
                     "fit progress: (%s, %s, %s, %s)",
                     current_round,
                     loss_cen,
-                    metrics_cen,
+                    c,#metrics_cen,
                     timeit.default_timer() - start_time,
                 )
                 history.add_loss_centralized(server_round=current_round, loss=loss_cen)

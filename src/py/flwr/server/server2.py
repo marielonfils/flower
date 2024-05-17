@@ -79,7 +79,7 @@ class Server:
         )
         self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.max_workers: Optional[int] = None
-        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60] 		)
+        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60])
         self.context.global_scale = 2**40
         self.pk = None
         self.n = 0
@@ -399,11 +399,12 @@ class Server:
         log(INFO, "Evaluating initial parameters")
         res = self.evaluate_round_enc(0,history,timeout) #self.strategy.evaluate(0, parameters=self.parameters)
         if res is not None :
+            c = {k: v for k, v in res[1].items() if k!="predictions"}
             log(
                 INFO,
                 "initial parameters (loss, other metrics): %s, %s",
                 res[0],
-                res[1],
+                c,#res[1],
             )
 
         # Run federated learning for num_rounds
@@ -520,12 +521,13 @@ class Server:
         res_cen = self.strategy.evaluate_enc(current_round, parameters=p)#[x/self.n for x in p])
         if res_cen is not None:
             loss_cen, metrics_cen = res_cen
+            c = {k: v for k, v in metrics_cen.items() if k!="predictions"}
             log(
                 INFO,
                 "Evaluation progress: (%s, %s, %s, %s)",
                 current_round,
                 loss_cen,
-                metrics_cen,
+                c,#metrics_cen,
                 timeit.default_timer() - start_time,
             )
             history.add_loss_centralized(server_round=current_round, loss=loss_cen)

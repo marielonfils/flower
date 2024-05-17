@@ -240,8 +240,9 @@ def run_fl(
     log(INFO, "app_fit: metrics_distributed_fit %s", str(hist.metrics_distributed_fit))
     log(INFO, "app_fit: metrics_distributed %s", str(hist.metrics_distributed))
     log(INFO, "app_fit: losses_centralized %s", str(hist.losses_centralized))
-    log(INFO, "app_fit: metrics_centralized %s", str(hist.metrics_centralized))
-
+    c = {k: v for k, v in hist.metrics_centralized.items() if k!="predictions"}
+    #log(INFO, "app_fit: metrics_centralized %s", str(hist.metrics_centralized))
+    log(INFO, "app_fit: metrics_centralized %s", str(c))
     # Graceful shutdown
     server.disconnect_all_clients(timeout=config.round_timeout)
 
