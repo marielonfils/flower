@@ -87,6 +87,7 @@ class Server:
         self.client_mapping = None
         self.methodo = methodo
         self.threshold = threshold
+        self.waiting = []
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -180,7 +181,7 @@ class Server:
         return parameters_aggregated
 
     def compute_reputation(self, server_round, timeout):
-        clients = self.clients + list(self._client_manager.waiting.values())
+        clients = self.clients + self.waiting
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_fn=get_gradients,
@@ -224,6 +225,14 @@ class Server:
         
     def set_aside_clients(self, SVs, timeout):
         changed = False
+        if SVs[-1][0] not in self.clients:
+            self.clients = self._client_manager.reregister(SVs[-1][0])
+            self.update_n()
+            changed = True
+        if SVs[-2][0] not in self.clients:
+            self.clients = self._client_manager.reregister(SVs[-2][0])
+            self.update_n()
+            changed = True
         for sv in SVs:
             if sv[0] not in self.clients and sv[1] > self.threshold:
                 self.clients = self._client_manager.reregister(sv[0])
@@ -250,8 +259,10 @@ class Server:
                     self.update_n()
                     sv += 1
                 return True
-            elif self.methodo == "set_aside":
+            elif self.methodo in ["set_aside","set_aside2"]:
                 changed = self.set_aside_clients(sorted_shapley_values, timeout)
+                if changed:
+                    self.waiting = list(self._client_manager.waiting.values())
                 return changed
             else:
                 return False
@@ -333,7 +344,14 @@ class Server:
             self._client_manager.num_available(),
         )
 
-        
+        if self.methodo == "set_aside":
+            fit_ins = (self.context,ts.ckks_vector(self.context,np.array([0],dtype=object).flatten()))
+            client_instructions2 += [(client, fit_ins) for client in self.waiting]
+            log(INFO, "set_aside: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
+        elif self.methodo == "set_aside2":
+            fit_ins = (self.context,parameters_aggregated)
+            client_instructions2 += [(client, fit_ins) for client in self.waiting]
+            log(INFO, "set_aside2: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
 
         # Collect `fit` results from all clients participating in this round
         results2, failures2 = fn_clients(
@@ -349,6 +367,7 @@ class Server:
             len(results2),
             len(failures2),
         )
+        results2 = [x for x in results2 if x[0] in self.clients]
         if len(failures2) != 0 or len(results2) != self.n:
             raise RuntimeError("Error while getting the new parameters")
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
@@ -367,6 +386,7 @@ class Server:
             if changed:
                 self.change_n(self.n,self.clients,timeout)
                 return None
+                
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],

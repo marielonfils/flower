@@ -77,6 +77,7 @@ class Server:
         self.n = 0
         self.methodo = methodo
         self.threshold = threshold
+        self.waiting = []
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -257,7 +258,7 @@ class Server:
         return loss_aggregated, metrics_aggregated, (results, failures)
 
     def compute_reputation(self, server_round, timeout):
-        clients = self.clients + list(self._client_manager.waiting.values())
+        clients = self.clients + self.waiting
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_fn=get_gradients,
@@ -301,6 +302,14 @@ class Server:
         
     def set_aside_clients(self, SVs, timeout):
         changed = False
+        if SVs[-1][0] not in self.clients:
+            self.clients = self._client_manager.reregister(SVs[-1][0])
+            self.update_n()
+            changed = True
+        if SVs[-2][0] not in self.clients:
+            self.clients = self._client_manager.reregister(SVs[-2][0])
+            self.update_n()
+            changed = True
         for sv in SVs:
             if sv[0] not in self.clients and sv[1] > self.threshold:
                 self.clients = self._client_manager.reregister(sv[0])
@@ -327,8 +336,10 @@ class Server:
                     self.update_n()
                     sv += 1
                 return True
-            elif self.methodo == "set_aside":
+            elif self.methodo in ["set_aside","set_aside2"]:
                 changed = self.set_aside_clients(sorted_shapley_values, timeout)
+                if changed:
+                    self.waiting = list(self._client_manager.waiting.values())
                 return changed
             else:
                 return False
@@ -365,7 +376,6 @@ class Server:
             parameters=self.parameters,
             client_manager=self._client_manager,
         )
-
         if not client_instructions:
             log(INFO, "fit_round %s: no clients selected, cancel", server_round)
             return None
@@ -376,7 +386,17 @@ class Server:
             len(client_instructions),
             self._client_manager.num_available(),
         )
-
+        
+        #ici
+        if self.methodo == "set_aside":
+            fit_ins = FitIns(Parameters(tensors=[], tensor_type="numpy.ndarray"), {"wait":"no_update"})
+            client_instructions += [(client, fit_ins) for client in self.waiting]
+            log(INFO, "set_aside: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
+        elif self.methodo == "set_aside2":
+            fit_ins = FitIns(self.parameters, {"wait":"global_update"})
+            client_instructions += [(client, fit_ins) for client in self.waiting]
+            log(INFO, "set_aside2: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
+        
         # Collect `fit` results from all clients participating in this round
         results, failures = fit_clients(
             client_instructions=client_instructions,
@@ -392,8 +412,7 @@ class Server:
         )
         
         changed = self.shapley_round(server_round, timeout)
-        if changed:
-            results = [x for x in results if x[0] in self.clients]
+        results = [x for x in results if x[0] in self.clients]
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
