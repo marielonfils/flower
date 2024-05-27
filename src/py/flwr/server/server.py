@@ -39,6 +39,7 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.history import History
 from flwr.server.strategy import FedAvg, Strategy
+import time
 
 THRESHOLD = -0.1
 METHODO = "delete"
@@ -125,10 +126,15 @@ class Server:
                 
         # Initialize parameters
         log(INFO, "Initializing global parameters")
+        t0=time.time()
         self.parameters = self._get_initial_parameters(timeout=timeout)
+        t01=time.time()-t0
         log(INFO, "Evaluating initial parameters")
         res = self.strategy.evaluate(0, parameters=self.parameters)
+        t1=time.time()
         res_fed = self.evaluate_round(server_round=0, timeout=timeout)
+        t11=time.time()-t1
+        history.add_round_time(0, {"fit_round": t01, "evaluate_round": t11})
         if res_fed is not None:
             loss_fed, evaluate_metrics_fed, _ = res_fed
             if loss_fed is not None:
@@ -156,10 +162,12 @@ class Server:
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
             print("################### START FIT ROUND ##########################")
+            t2=time.time()
             res_fit = self.fit_round(
                 server_round=current_round,
                 timeout=timeout,
             )
+            t3=time.time()-t2
             print("################### FIT ROUND DONE ##########################")
             if res_fit is not None:
                 parameters_prime, fit_metrics, _ = res_fit  # fit_metrics_aggregated
@@ -190,7 +198,9 @@ class Server:
 
             # Evaluate model on a sample of available clients
             print("################### START EVALUATE ROUND ##########################")
+            t4=time.time()
             res_fed = self.evaluate_round(server_round=current_round, timeout=timeout)
+            t5=time.time()-t4
             print("################### EVALUATE ROUND DONE ##########################")
             if res_fed is not None:
                 loss_fed, evaluate_metrics_fed, _ = res_fed
@@ -201,6 +211,7 @@ class Server:
                     history.add_metrics_distributed(
                         server_round=current_round, metrics=evaluate_metrics_fed
                     )
+            history.add_round_time(current_round, {"fit_round": t3, "evaluate_round": t5})
 
         # Bookkeeping
         end_time = timeit.default_timer()

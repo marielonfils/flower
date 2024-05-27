@@ -357,7 +357,8 @@ def _fit_enc(self: Client, ins: FitIns,config=None,flat=False) -> FitRes:
     #parameters: NDArrays = _fitparameters_to_ndarrays(ins.parameters)
 
     # Train
-    results = self.numpy_client.fit_enc(ins, config)  # type: ignore
+    parameters: NDArrays = parameters_to_ndarrays(ins.parameters)
+    results = self.numpy_client.fit_enc(parameters, config,flat=flat)  # type: ignore
     if not (
         len(results) == 3
         and isinstance(results[0], list)

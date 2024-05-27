@@ -63,6 +63,18 @@ ReconnectResultsAndFailures = Tuple[
 METHODO = "delete_one"
 THRESHOLD = -0.1
 
+def reshape_parameters(parameters,shapes):
+    p=[]
+    offset=0
+    for _,s in enumerate(shapes):
+        n = int(np.prod(s))
+        if not s:
+            p.append(parameters[offset])#np.array(parameters[offset]))#,dtype=object))
+        else:
+            p.append(list(np.array(parameters[offset:(offset+n)]).reshape(s)))
+        offset+=n
+    return p#np.array(p,dtype=object)
+
 class Server:
     """Flower server."""
 
@@ -72,6 +84,7 @@ class Server:
         client_manager: ClientManager,
         contribution: bool = True,
         strategy: Optional[Strategy] = None,
+        shapes=None,
     ) -> None:
         self._client_manager: ClientManager = client_manager
         self.parameters: Parameters = Parameters(
@@ -88,6 +101,7 @@ class Server:
         self.clients = None
         self.client_mapping = None
         self.ce = contribution
+        self.shape = shapes
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -292,10 +306,16 @@ class Server:
 
         #Send aggregated parameters to all clients
         #Collects the new parameters from all clients
-        client_instructions2 = self.strategy.configure_fit_enc(
-            (self.context,parameters_aggregated) ,
+        #client_instructions2 = self.strategy.configure_fit_enc(
+        #    (self.context,parameters_aggregated) ,
+        #    client_manager=self._client_manager,
+        #    clients = clients
+        #)
+        p2=ndarrays_to_parameters(reshape_parameters(parameters_aggregated.mk_decode(),self.shape))
+        client_instructions2 = self.strategy.configure_fit(
+            server_round=server_round,
+            parameters=p2 ,
             client_manager=self._client_manager,
-            clients = clients
         )
 
         if not client_instructions2:
@@ -387,17 +407,23 @@ class Server:
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         log(INFO, "#################SET PK#################")
+        t0=time.time()
         pk_aggregated,self.n,self.clients = self.get_pk(timeout=timeout) #TODO fix timeout
         self.client_mapping = {c.cid:i for i,c in enumerate(self.clients)}
         self.n_tot = self.n
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
+        t01=time.time()-t0
         # Initialize parameters
         log(INFO, "#################GET INITIAL PARAMETERS#################")
         self.length = length
+        t02=time.time()
         self.parameters = self.get_initial_parameters_enc(timeout=timeout)
+        t03=time.time()-t02
         log(INFO, "Evaluating initial parameters")
+        t04=time.time()
         res = self.evaluate_round_enc(0,history,timeout) #self.strategy.evaluate(0, parameters=self.parameters)
+        t05=time.time()-t04
         if res is not None :
             c = {k: v for k, v in res[1].items() if k!="predictions"}
             log(
@@ -406,6 +432,7 @@ class Server:
                 res[0],
                 c,#res[1],
             )
+        history.add_round_time(0, {"fit_round":t01+t03,"evaluate_round":t05})
 
         # Run federated learning for num_rounds
         log(INFO, "FL starting")
@@ -413,6 +440,7 @@ class Server:
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
             log(INFO, "#################FIT ROUND#################%f", current_round)
+            t=time.time()
             res_fit = self.fit_round_enc(
                 server_round=current_round,
                 current_round=current_round,
@@ -420,6 +448,7 @@ class Server:
                 history=history,
                 timeout=timeout,
             )
+            self.round_fit_time = time.time()-t
             if res_fit is not None:
                 parameters_prime, fit_metrics, _ = res_fit  # fit_metrics_aggregated
                 if parameters_prime:
@@ -428,7 +457,10 @@ class Server:
                     server_round=current_round, metrics=fit_metrics
                 )
             # Evaluate model on a sample of available clients
+            t2=time.time()
             self.evaluate_round_enc(current_round,history,timeout)
+            t3=time.time()-t2
+            history.add_round_time(current_round, {"fit_round":self.round_fit_time,"evaluate_round":t3})
         self.eval_enc_last(num_rounds+1,start_time,history,timeout)    
 
         # Bookkeeping
@@ -870,8 +902,9 @@ def send_ds(
     client: ClientProxy, ins, timeout: Optional[float]
 ) -> Tuple[ClientProxy, FitRes]:
     """Refine parameters on a single client."""
-    context,enc = ins
-    fit_res = client.send_ds(context,enc, timeout=timeout)
+    #context,enc = ins
+    #fit_res = client.send_ds(context,enc, timeout=timeout)
+    fit_res = client.send_ds(None,ins, timeout=timeout)
     return client, fit_res
 
 def _handle_finished_future_after_fit(

@@ -70,9 +70,13 @@ message ServerMessage {
     bytes enc = 2;
   }
 
-  message SendDSIns{
-    bytes ctx = 1;
-    bytes ds = 2;
+  //message SendDSIns{
+  //  bytes ctx = 1;
+  //  bytes ds = 2;
+  //}
+  message SendDSIns {
+    Parameters parameters = 1;
+    map<string, Scalar> config = 2;
   }
 
   message SendEvalIns{
