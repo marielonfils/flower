@@ -373,19 +373,20 @@ class Server:
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
             
         #send aggregated parameters to ce server
-        instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={"check":server_round%5 == 1})
+        instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={"check":server_round%3 == 1})
         evaluate_client(self._client_manager.ce_server, instruction, timeout)
         # compute the reputation of each client
         
-        if server_round%5 == 0:
+        if True:
             shapley_values = self.compute_reputation(server_round, timeout)
             log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
             with open("shapleys_enc.txt","a") as f:
                 f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]) + "\n")
-            changed = self.eliminate_clients(shapley_values,server_round, timeout)
-            if changed:
-                self.change_n(self.n,self.clients,timeout)
-                return None
+            if server_round%3 == 0:
+                changed = self.eliminate_clients(shapley_values,server_round, timeout)
+                if changed:
+                    self.change_n(self.n,self.clients,timeout)
+                    return None
                 
         # Aggregate training results
         aggregated_result: Tuple[
