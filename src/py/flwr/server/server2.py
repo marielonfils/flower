@@ -383,8 +383,10 @@ class Server:
             with open("shapleys_enc.txt","a") as f:
                 f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]) + "\n")
             if server_round%3 == 0:
+                print("ELIMINATION ROUND")
                 changed = self.eliminate_clients(shapley_values,server_round, timeout)
                 if changed:
+                    print("N CLIENTS HAS CHANGED")
                     self.change_n(self.n,self.clients,timeout)
                     return None
                 
