@@ -78,6 +78,7 @@ class Server:
         self.methodo = methodo
         self.threshold = threshold
         self.waiting = []
+        self.check = True
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -104,11 +105,25 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
+        
+        rsa_public_key = []
         for r in results:
-            if r[1] == 1:
+            if len(r[1]) == 2:
+                rsa_public_key = r[1]
                 self._client_manager.register_ce_server(r[0])
             else:
                 self.clients.append(r[0])
+                
+        #send RSA public key to all clients
+        log(INFO, "Send RSA public key of the CE server to all clients")
+        clients = self._client_manager.sample(min_num_clients,min_num_clients)
+        client_instructions= [(client, rsa_public_key) for client in clients]
+        results, failures = fn_clients(
+            client_fn=send_public_key,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
         self.client_mapping = {c.cid:i for i,c in enumerate(self.clients)}
         return 0
                 
@@ -120,11 +135,6 @@ class Server:
         # Identify ce server
         if self.identify_ce_server(timeout=timeout):
             return history
-        
-        with open("shapleys.txt","a") as f:
-            f.write("Start experiment with " + str(num_rounds) + " rounds and " + str(self.strategy.min_available_clients) + " clients\n")
-            f.write("Methodology is: " + self.methodo + "\n")
-            f.write("Threshold is: " + str(self.threshold) + "\n")
             
         # Initialize parameters
         log(INFO, "Initializing global parameters")
@@ -157,12 +167,11 @@ class Server:
         start_time = timeit.default_timer()
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
-            print("################### START FIT ROUND ##########################")
+            print("################### FIT ROUND ##########################")
             res_fit = self.fit_round(
                 server_round=current_round,
                 timeout=timeout,
             )
-            print("################### FIT ROUND DONE ##########################")
             if res_fit is not None:
                 parameters_prime, fit_metrics, _ = res_fit  # fit_metrics_aggregated
                 if parameters_prime:
@@ -172,8 +181,8 @@ class Server:
                 )
 
             # Evaluate model using strategy implementation
+            print("################### EVALUATE ON GLOBAL SERVER ##########################")
             res_cen = self.strategy.evaluate(current_round, parameters=self.parameters)
-            print("################### EVALUATE ON SERVER DONE ##########################")
             if res_cen is not None:
                 loss_cen, metrics_cen = res_cen
                 log(
@@ -190,9 +199,8 @@ class Server:
                 )
 
             # Evaluate model on a sample of available clients
-            print("################### START EVALUATE ROUND ##########################")
+            print("################### EVALUATE ON CLIENTS ##########################")
             res_fed = self.evaluate_round(server_round=current_round, timeout=timeout)
-            print("################### EVALUATE ROUND DONE ##########################")
             if res_fed is not None:
                 loss_fed, evaluate_metrics_fed, _ = res_fed
                 if loss_fed is not None:
@@ -347,19 +355,18 @@ class Server:
     
     def shapley_round(self, server_round: int, timeout: Optional[float]):
         # send global parameters to the ce server
-        print("################### SEND GLOBAL PARAMETERS TO CE SERVER ####################")
-        instruction = EvaluateIns(parameters=self.parameters,config={})
-        evaluate_client(self._client_manager.ce_server, instruction, timeout)
+        if self.check:
+            instruction = EvaluateIns(parameters=self.parameters,config={})
+            evaluate_client(self._client_manager.ce_server, instruction, timeout)
+            self.check = False
         # compute the reputation of each client
-        print("################### COMPUTE REPUTATION ON CE SERVER ####################")
-        shapley_values = self.compute_reputation(server_round, timeout)
-        log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
-        with open("shapleys.txt","a") as f:
-            f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values])+"\n")
-        # eliminate a client with a low shapley value
-        print("################### ELIMINATE CLIENTS WITH LOW SHAPLEY ####################")
-        changed = self.eliminate_clients(shapley_values,server_round, timeout)
-        print("################### END OF SHAPLEY ROUND "+ str(server_round) +"####################")
+        self.check = not random.randrange(5)
+        changed = False
+        if self.check:
+            shapley_values = self.compute_reputation(server_round, timeout)
+            log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
+            # eliminate a client with a low shapley value
+            changed = self.eliminate_clients(shapley_values,server_round, timeout)
         return changed
             
     def fit_round(
@@ -414,11 +421,11 @@ class Server:
         changed = self.shapley_round(server_round, timeout)
         results = [x for x in results if x[0] in self.clients]
         # Aggregate training results
+        print("################### AGGREGATE FIT ##########################")
         aggregated_result: Tuple[
             Optional[Parameters],
             Dict[str, Scalar],
         ] = self.strategy.aggregate_fit2(self.n,server_round, results, failures)
-        print("################### AGGREGATE FIT DONE ##########################")
         parameters_aggregated, metrics_aggregated = aggregated_result
         return parameters_aggregated, metrics_aggregated, (results, failures)
 
@@ -681,5 +688,11 @@ def identify(
     client: ClientProxy, ins, timeout: Optional[float]
 ) :
     status = client.identify(timeout=timeout)
+    return client, status
+    
+def send_public_key(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    status = client.send_public_key(ins,timeout=timeout)
     return client, status
     

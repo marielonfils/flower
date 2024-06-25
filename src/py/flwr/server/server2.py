@@ -46,6 +46,7 @@ sys.path.append('../../../../../TenSEAL')
 import tenseal as ts
 import numpy as np
 from functools import reduce
+import random
 
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
@@ -88,6 +89,7 @@ class Server:
         self.methodo = methodo
         self.threshold = threshold
         self.waiting = []
+        self.check = True
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -373,22 +375,21 @@ class Server:
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
             
         #send aggregated parameters to ce server
-        instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={"check":server_round%3 == 1})
-        evaluate_client(self._client_manager.ce_server, instruction, timeout)
+        if self.check:
+            instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
+            evaluate_client(self._client_manager.ce_server, instruction, timeout)
+            self.check = False
+            
         # compute the reputation of each client
-        
-        if True:
+        self.check = not random.randrange(5) #evaluate contribution with a probability of 20%
+        if self.check:
+            log(INFO, "#################CONTRIBUTION EVALUATION#################")
             shapley_values = self.compute_reputation(server_round, timeout)
             log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
-            with open("shapleys_enc.txt","a") as f:
-                f.write( "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]) + "\n")
-            if server_round > 3 and server_round%3 == 0:
-                print("ELIMINATION ROUND")
-                changed = self.eliminate_clients(shapley_values,server_round, timeout)
-                if changed:
-                    print("N CLIENTS HAS CHANGED")
-                    self.change_n(self.n,self.clients,timeout)
-                    return None
+            changed = self.eliminate_clients(shapley_values,server_round, timeout)
+            if changed:
+                self.change_n(self.n,self.clients,timeout)
+                return None
                 
         # Aggregate training results
         aggregated_result: Tuple[
@@ -414,11 +415,6 @@ class Server:
         if clients == []:
             return history
         client_instructions= [(client, None) for client in clients]
-        
-        with open("shapleys_enc.txt","a") as f:
-            f.write("Start experiment with " + str(num_rounds) + " rounds and " + str(min_num_clients) + " clients\n")
-            f.write("Methodology is: " + self.methodo + "\n")
-            f.write("Threshold is: " + str(self.threshold) + "\n")
             
         results, failures = fn_clients(
             client_fn=identify,
@@ -426,9 +422,22 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
+        rsa_public_key = []
         for r in results:
-            if r[1] == 1:
+            if len(r[1]) == 2:
+                rsa_public_key = r[1]
                 self._client_manager.register_ce_server(r[0])
+                
+        #send RSA public key to all clients
+        log(INFO, "Send RSA public key of the CE server to all clients")
+        clients = self._client_manager.sample(min_num_clients,min_num_clients)
+        client_instructions= [(client, rsa_public_key) for client in clients]
+        results, failures = fn_clients(
+            client_fn=send_public_key,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
@@ -457,7 +466,7 @@ class Server:
         start_time = timeit.default_timer()
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
-            log(INFO, "#################FIT ROUND#################%f", current_round)
+            log(INFO, "#################FIT ROUND#################")
             res_fit = self.fit_round_enc(
                 server_round=current_round,
                 current_round=current_round,
@@ -561,7 +570,7 @@ class Server:
     
     def evaluate_enc(self,parameters,current_round, start_time, history):
         # Evaluate model using strategy implementation
-        log(INFO, "#################EVALUATE ENC#################%f",current_round)
+        log(INFO, "#################EVALUATE MODEL ON GLOBAL SERVER#################")
         p=parameters.mk_decode() #TODO check division by n
         res_cen = self.strategy.evaluate_enc(current_round, parameters=p)#[x/self.n for x in p])
         if res_cen is not None:
@@ -581,7 +590,7 @@ class Server:
 
     def evaluate_round_enc(self,server_round,history,timeout):
         # Evaluate model on a sample of available clients
-        log(INFO, "#################EVALUATE ROUND#################%f", server_round)
+        log(INFO, "#################EVALUATE MODEL ON CLIENTS#################")
 
         # Get clients and their respective instructions from strategy
         client_instructions = self.strategy.configure_evaluate_enc(
@@ -1056,6 +1065,12 @@ def identify(
     client: ClientProxy, ins, timeout: Optional[float]
 ) :
     status = client.identify(timeout=timeout)
+    return client, status
+    
+def send_public_key(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    status = client.send_public_key(ins,timeout=timeout)
     return client, status
     
     

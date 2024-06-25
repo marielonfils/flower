@@ -194,6 +194,8 @@ def handle_legacy_message(
         message = _get_gradients(client, server_msg.get_gradients_ins)
     if field == "get_contributions_ins":
         message = _get_contributions(client, server_msg.get_contributions_ins)
+    if field == "send_public_key_ins":
+        message = _set_public_key(client, server_msg.send_public_key_ins)
     if server_msg.HasField("send_sum_ins"):
         return _example_response(client, server_msg.send_sum_ins), client.get_state()
     if message:
@@ -374,10 +376,14 @@ def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> Cl
     return ClientMessage(send_eval_res=evaluate_res_proto)
     
 def _identify(client: Client, msg: ServerMessage.IdentifyIns) -> ClientMessage:
-    status = client.identify()
-    identify_res = ClientMessage.IdentifyRes(status=status)
+    s = client.identify()
+    identify_res = ClientMessage.IdentifyRes(status=s)
     return ClientMessage(identify_res=identify_res)
-
+    
+def _set_public_key(client: Client, msg: ServerMessage.SendPublicKeyIns) -> ClientMessage:
+    client.set_public_key(msg.publickey)
+    send_public_key_res = ClientMessage.SendPublicKeyRes()
+    return ClientMessage(send_public_key_res=send_public_key_res)
 
 def _get_gradients(
     client: Client, get_gradients_msg: ServerMessage.GetGradientsIns
@@ -391,7 +397,6 @@ def _get_gradients(
     # Serialize response
     get_gradients_res_proto = serde.get_gradients_res_to_proto(gradients)
     return ClientMessage(get_gradients_res=get_gradients_res_proto)
-    
     
 def _get_contributions(
     client: Client, get_contributions_msg: ServerMessage.GetContributionsIns
