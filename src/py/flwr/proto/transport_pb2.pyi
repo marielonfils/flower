@@ -318,19 +318,46 @@ class ServerMessage(google.protobuf.message.Message):
 
     @typing_extensions.final
     class SendDSIns(google.protobuf.message.Message):
+        """message SendDSIns{
+         bytes ctx = 1;
+         bytes ds = 2;
+        }
+        """
+
         DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-        CTX_FIELD_NUMBER: builtins.int
-        DS_FIELD_NUMBER: builtins.int
-        ctx: builtins.bytes
-        ds: builtins.bytes
+        @typing_extensions.final
+        class ConfigEntry(google.protobuf.message.Message):
+            DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+            KEY_FIELD_NUMBER: builtins.int
+            VALUE_FIELD_NUMBER: builtins.int
+            key: builtins.str
+            @property
+            def value(self) -> global___Scalar: ...
+            def __init__(
+                self,
+                *,
+                key: builtins.str = ...,
+                value: global___Scalar | None = ...,
+            ) -> None: ...
+            def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
+            def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+        PARAMETERS_FIELD_NUMBER: builtins.int
+        CONFIG_FIELD_NUMBER: builtins.int
+        @property
+        def parameters(self) -> global___Parameters: ...
+        @property
+        def config(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___Scalar]: ...
         def __init__(
             self,
             *,
-            ctx: builtins.bytes = ...,
-            ds: builtins.bytes = ...,
+            parameters: global___Parameters | None = ...,
+            config: collections.abc.Mapping[builtins.str, global___Scalar] | None = ...,
         ) -> None: ...
-        def ClearField(self, field_name: typing_extensions.Literal["ctx", b"ctx", "ds", b"ds"]) -> None: ...
+        def HasField(self, field_name: typing_extensions.Literal["parameters", b"parameters"]) -> builtins.bool: ...
+        def ClearField(self, field_name: typing_extensions.Literal["config", b"config", "parameters", b"parameters"]) -> None: ...
 
     @typing_extensions.final
     class SendEvalIns(google.protobuf.message.Message):

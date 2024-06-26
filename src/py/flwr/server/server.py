@@ -39,6 +39,7 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.history import History
 from flwr.server.strategy import FedAvg, Strategy
+import time
         
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
@@ -61,6 +62,7 @@ class Server:
         self,
         *,
         client_manager: ClientManager,
+        contribution: bool = True,
         strategy: Optional[Strategy] = None,
         methodo, 
         threshold,
@@ -75,6 +77,7 @@ class Server:
         self.clients = []
         self.client_mapping = None
         self.n = 0
+        self.ce=contribution
         self.methodo = methodo
         self.threshold = threshold
         self.waiting = []
@@ -133,15 +136,21 @@ class Server:
         history = History()
 
         # Identify ce server
-        if self.identify_ce_server(timeout=timeout):
-            return history
-            
+        if self.ce:
+            if self.identify_ce_server(timeout=timeout):
+                return history
+        
         # Initialize parameters
         log(INFO, "Initializing global parameters")
+        t0=time.time()
         self.parameters = self._get_initial_parameters(timeout=timeout)
+        t01=time.time()-t0
         log(INFO, "Evaluating initial parameters")
         res = self.strategy.evaluate(0, parameters=self.parameters)
+        t1=time.time()
         res_fed = self.evaluate_round(server_round=0, timeout=timeout)
+        t11=time.time()-t1
+        history.add_round_time(0, {"fit_round": t01, "evaluate_round": t11})
         if res_fed is not None:
             loss_fed, evaluate_metrics_fed, _ = res_fed
             if loss_fed is not None:
@@ -153,11 +162,12 @@ class Server:
                 )
         self.n = self.strategy.min_available_clients
         if res is not None:
+            c = {k: v for k, v in res[1].items() if k!="predictions"}
             log(
                 INFO,
                 "initial parameters (loss, other metrics): %s, %s",
                 res[0],
-                res[1],
+                c,#res[1],
             )
             history.add_loss_centralized(server_round=0, loss=res[0])
             history.add_metrics_centralized(server_round=0, metrics=res[1])
@@ -185,12 +195,13 @@ class Server:
             res_cen = self.strategy.evaluate(current_round, parameters=self.parameters)
             if res_cen is not None:
                 loss_cen, metrics_cen = res_cen
+                c = {k: v for k, v in metrics_cen.items() if k!="predictions"}
                 log(
                     INFO,
                     "fit progress: (%s, %s, %s, %s)",
                     current_round,
                     loss_cen,
-                    metrics_cen,
+                    c,#metrics_cen,
                     timeit.default_timer() - start_time,
                 )
                 history.add_loss_centralized(server_round=current_round, loss=loss_cen)
@@ -210,6 +221,7 @@ class Server:
                     history.add_metrics_distributed(
                         server_round=current_round, metrics=evaluate_metrics_fed
                     )
+            history.add_round_time(current_round, {"fit_round": t3, "evaluate_round": t5})
 
         # Bookkeeping
         end_time = timeit.default_timer()
@@ -417,9 +429,9 @@ class Server:
             len(results),
             len(failures),
         )
-        
-        changed = self.shapley_round(server_round, timeout)
-        results = [x for x in results if x[0] in self.clients]
+        if self.ce:
+            changed = self.shapley_round(server_round, timeout)
+            results = [x for x in results if x[0] in self.clients]
         # Aggregate training results
         print("################### AGGREGATE FIT ##########################")
         aggregated_result: Tuple[

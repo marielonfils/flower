@@ -30,6 +30,7 @@ class History:
         self.metrics_distributed_fit: Dict[str, List[Tuple[int, Scalar]]] = {}
         self.metrics_distributed: Dict[str, List[Tuple[int, Scalar]]] = {}
         self.metrics_centralized: Dict[str, List[Tuple[int, Scalar]]] = {}
+        self.round_times: Dict[str, List[Tuple[int, Scalar]]] = {}
 
     def add_loss_distributed(self, server_round: int, loss: float) -> None:
         """Add one loss entry (from distributed evaluation)."""
@@ -71,6 +72,16 @@ class History:
             if key not in self.metrics_centralized:
                 self.metrics_centralized[key] = []
             self.metrics_centralized[key].append((server_round, metrics[key]))
+    def add_round_time(
+        self, server_round: int, metrics: Dict[str, Scalar]
+    ) -> None:
+        """Add metrics entries (from centralized evaluation)."""
+        for key in metrics:
+            # if not (isinstance(metrics[key], float) or isinstance(metrics[key], int)):
+            #     continue  # ignore non-numeric key/value pairs
+            if key not in self.round_times:
+                self.round_times[key] = []
+            self.round_times[key].append((server_round, metrics[key]))
 
     def __repr__(self) -> str:
         """Create a representation of History.

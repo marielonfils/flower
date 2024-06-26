@@ -170,11 +170,11 @@ class GrpcClientProxy(ClientProxy):
         timeout: Optional[float],
     ):
         """Refine the provided parameters using the locally held dataset."""
-        send_ds_ins_msg = serde.send_ds_ins_to_proto(ctx, ds=enc)
+        send_ds_ins_msg = serde.send_ds_ins_to_proto(ctx, enc)
 
         res_wrapper: ResWrapper = self.bridge.request(
             ins_wrapper=InsWrapper(
-                server_message=ServerMessage(send_ds_ins=send_ds_ins_msg),
+                server_message=ServerMessage(send_ds_ins=send_ds_ins_msg), 
                 timeout=timeout,
             )
         )

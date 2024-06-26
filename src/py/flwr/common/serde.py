@@ -501,17 +501,24 @@ def send_enc_res_from_proto(msg: ClientMessage.SendEncRes):
 
 # === SendDS messages ===
 #send aggregated decryption share
-def send_ds_ins_to_proto(ctx, ds):
+def send_ds_ins_to_proto(ctx, ins):
     """Serialize `SendDSIns` to ProtoBuf."""
-    ctx_proto = ctx.serialize()
-    ds_proto = ds.serialize()
-    return ServerMessage.SendDSIns(ctx = ctx_proto, ds = ds_proto)
+    #ctx_proto = ctx.serialize()
+    #ds_proto = ds.serialize()
+    #p= ServerMessage.SendDSIns(ctx = ctx_proto, ds = ds_proto)
+    #log(INFO,f"send_ds_ins_to_proto: {get_size(p)} {sys.getsizeof(p)} {sys.getsizeof(ctx_proto)+sys.getsizeof(ds_proto)} {sys.getsizeof(ds)} {sys.getsizeof(ds.mk_decode())}")  
+    parameters_proto = parameters_to_proto(ins.parameters)
+    config_msg = metrics_to_proto({})
+    return ServerMessage.SendDSIns(parameters=parameters_proto, config=config_msg)
 
 def send_ds_ins_from_proto(msg:ServerMessage.SendDSIns):
     """Deserialize `SendDSIns` from ProtoBuf."""
-    ctx = ts.context_from(msg.ctx)
-    ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
-    return ds
+    #ctx = ts.context_from(msg.ctx)
+    #ds = ts.ckks_vector_from(ctx, msg.ds).mk_decode()
+    #return ds 
+    parameters = parameters_from_proto(msg.parameters)
+    config = metrics_from_proto(msg.config)
+    return typing.FitIns(parameters=parameters, config=config)
 
 #send new parameters
 def send_ds_res_to_proto(ctx, enc, loss=0, num_example=0, metrics={}):

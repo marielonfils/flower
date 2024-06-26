@@ -210,15 +210,25 @@ class Client(ABC):
             evaluation.
         """
         _ = (self, ins)
-        return EvaluateRes(
+        #return EvaluateRes(
+        #    status=Status(
+        #        code=Code.EVALUATE_NOT_IMPLEMENTED,
+        #        message="Client does not implement `evaluate`",
+        #    ),
+        #    loss=0.0,
+        #    num_examples=0,
+        #    metrics={},
+        #)
+        return FitRes(
             status=Status(
-                code=Code.EVALUATE_NOT_IMPLEMENTED,
-                message="Client does not implement `evaluate`",
+                code=Code.FIT_NOT_IMPLEMENTED,
+                message="Client does not implement `fit`",
             ),
-            loss=0.0,
+            parameters=Parameters(tensor_type="", tensors=[]),
             num_examples=0,
             metrics={},
         )
+    
 
     def get_state(self) -> RunState:
         """Get the run state from this client."""
@@ -342,7 +352,7 @@ def maybe_call_fit(client: Client, fit_ins: FitIns) -> FitRes:
     # If the client implements `fit`, call it
     return client.fit(fit_ins)
 
-def maybe_call_fit_enc(client: Client, enc, n) -> FitRes:
+def maybe_call_fit_enc(client: Client, enc:FitIns, n=None, flat=True) -> FitRes:
     """Call `fit` if the client overrides it."""
     # Check if client overrides `fit`
     if not has_fit_enc(client=client):
@@ -350,7 +360,7 @@ def maybe_call_fit_enc(client: Client, enc, n) -> FitRes:
         return None
 
     # If the client implements `fit`, call it
-    return client.fit_enc(enc, n, True)
+    return client.fit_enc(enc,  flat=flat) #n
 
 
 def maybe_call_evaluate(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRes:
@@ -372,7 +382,7 @@ def maybe_call_evaluate(client: Client, evaluate_ins: EvaluateIns) -> EvaluateRe
     # If the client implements `evaluate`, call it
     return client.evaluate(evaluate_ins)
 
-def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns,reshape=False) -> EvaluateRes:
+def maybe_call_evaluate_enc(client: Client, evaluate_ins,reshape=False) -> EvaluateRes:
     """Call `evaluate` if the client overrides it."""
     # Check if client overrides `evaluate`
     if not has_evaluate_enc(client=client):
@@ -390,6 +400,6 @@ def maybe_call_evaluate_enc(client: Client, evaluate_ins: EvaluateIns,reshape=Fa
         return None
 
     # If the client implements `evaluate`, call it
-    return client.evaluate_enc(evaluate_ins,reshape)
+    return client.evaluate_enc(evaluate_ins,reshape=reshape)
    
    

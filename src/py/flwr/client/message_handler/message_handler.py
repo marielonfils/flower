@@ -280,7 +280,6 @@ def _evaluate(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> Client
 
 def _get_pk(client: Client, get_pk_msg: ServerMessage.GetPKIns) -> ClientMessage:
     
-    #print("############# GET PK ##############")
     #Perform set_pk
     pk_server = serde.get_pk_ins_from_proto(get_pk_msg)
     client.numpy_client.set_context(8192,[60,40,40,60],2**40,pk_server)
@@ -292,7 +291,6 @@ def _get_pk(client: Client, get_pk_msg: ServerMessage.GetPKIns) -> ClientMessage
     return ClientMessage(get_pk_res=get_pk_res)
 
 def _set_pk(client: Client, send_pk_msg: ServerMessage.SendPKIns) -> ClientMessage:
-    #print("############# SET PK ##############")
     # Deserialize set_pk instruction
     send_pk_ins = serde.send_pk_ins_from_proto(send_pk_msg)
 
@@ -305,7 +303,6 @@ def _set_pk(client: Client, send_pk_msg: ServerMessage.SendPKIns) -> ClientMessa
     return ClientMessage(send_pk_res=send_pk_res_proto)
 
 def _get_parms(client: Client, get_parms_msg: ServerMessage.GetParmsIns) -> ClientMessage:
-    #print("############# GET PARMS ##############")
     # Deserialize get_parms instruction
     get_parms_ins = serde.get_parms_ins_from_proto(get_parms_msg)
 
@@ -317,7 +314,6 @@ def _get_parms(client: Client, get_parms_msg: ServerMessage.GetParmsIns) -> Clie
     return ClientMessage(get_parms_res=get_parms_res_proto)
 
 def _get_ds(client: Client, get_ds_msg: ServerMessage.SendEncIns) -> ClientMessage:
-    #print("############# GET DS ##############")
     #Deserialize get_ds instruction
     enc = serde.send_enc_ins_from_proto(get_ds_msg)
 
@@ -329,30 +325,26 @@ def _get_ds(client: Client, get_ds_msg: ServerMessage.SendEncIns) -> ClientMessa
     return ClientMessage(send_enc_res=get_ds_res_proto)
 
 def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMessage:
-    #print("############# FIT ENC ##############")
     # Deserialize send_ds instruction
     parms = serde.send_ds_ins_from_proto(send_ds_msg)
-
     #Perform evaluation
-    #print("----- evaluating -----")
     evaluate_res = maybe_call_evaluate_enc(
         client=client,
         evaluate_ins=parms,
-        reshape = True
+        reshape = False
         
     )
     l,n,acc = evaluate_res
 
     # Perform fit
-    #print("----- fitting -----")
     parameters,length,loss = maybe_call_fit_enc(        
         client=client,        
         enc=parms,  
-        n=n  
+        #n=n  ,
+        flat=False
     )
 
     #Encrypt parameters
-    #print("----- encrypting parameters -----")
     ctx, enc_new = client.numpy_client.get_parms_enc(train=True)
     # Serialize fit result
     #TODO check here if length 
@@ -360,7 +352,6 @@ def _fit_enc(client: Client, send_ds_msg: ServerMessage.SendDSIns) -> ClientMess
     return ClientMessage(send_ds_res=fit_res_proto)
 
 def _evaluate_enc(client: Client, evaluate_msg: ServerMessage.EvaluateIns) -> ClientMessage:
-    #print("############# EVALUATE ENC ##############")
     # Deserialize evaluate instruction
     evaluate_ins = serde.send_eval_ins_from_proto(evaluate_msg)
 

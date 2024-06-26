@@ -80,6 +80,7 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
     *,
     server_address: str = ADDRESS_FLEET_API_GRPC_BIDI,
     length: int,
+    contribution: bool = True,
     server: Optional[Server] = None,
     config: Optional[ServerConfig] = None,
     strategy: Optional[Strategy] = None,
@@ -89,6 +90,7 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
     enc = False,
     methodo = "",
     threshold = -1.0
+    shape=None,
 ) -> History:
     """Start a Flower server using the gRPC transport layer.
 
@@ -165,6 +167,8 @@ def start_server(  # pylint: disable=too-many-arguments,too-many-locals
         strategy=strategy,
         client_manager=client_manager,
         enc=enc,
+        contribution=contribution,
+        shape=shape
         methodo = methodo,
         threshold = threshold
     )
@@ -209,6 +213,8 @@ def init_defaults(
     strategy: Optional[Strategy],
     client_manager: Optional[ClientManager],
     enc,
+    contribution,
+    shape
     methodo,
     threshold
 ) -> Tuple[Server, ServerConfig]:
@@ -219,9 +225,9 @@ def init_defaults(
         if strategy is None:
             strategy = FedAvg()
         if enc:
-            server = ServerEnc(client_manager=client_manager, strategy=strategy, methodo=methodo, threshold=threshold)
+            server = ServerEnc(client_manager=client_manager, strategy=strategy,contribution=contribution,shapes=shape,methodo=methodo,threshold=threshold)
         else:
-            server = Server(client_manager=client_manager, strategy=strategy, methodo=methodo, threshold=threshold)
+            server = Server(client_manager=client_manager, strategy=strategy,contribution=contribution,shapes=shape,methodo=methodo,threshold=threshold)
     elif strategy is not None:
         log(WARN, "Both server and strategy were provided, ignoring strategy")
 
@@ -243,8 +249,9 @@ def run_fl(
     log(INFO, "app_fit: metrics_distributed_fit %s", str(hist.metrics_distributed_fit))
     log(INFO, "app_fit: metrics_distributed %s", str(hist.metrics_distributed))
     log(INFO, "app_fit: losses_centralized %s", str(hist.losses_centralized))
-    log(INFO, "app_fit: metrics_centralized %s", str(hist.metrics_centralized))
-
+    c = {k: v for k, v in hist.metrics_centralized.items() if k!="predictions"}
+    #log(INFO, "app_fit: metrics_centralized %s", str(hist.metrics_centralized))
+    log(INFO, "app_fit: metrics_centralized %s", str(c))
     # Graceful shutdown
     server.disconnect_all_clients(timeout=config.round_timeout)
 

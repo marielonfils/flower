@@ -61,6 +61,18 @@ ReconnectResultsAndFailures = Tuple[
     List[Union[Tuple[ClientProxy, DisconnectRes], BaseException]],
 ]
 
+def reshape_parameters(parameters,shapes):
+    p=[]
+    offset=0
+    for _,s in enumerate(shapes):
+        n = int(np.prod(s))
+        if not s:
+            p.append(parameters[offset])#np.array(parameters[offset]))#,dtype=object))
+        else:
+            p.append(list(np.array(parameters[offset:(offset+n)]).reshape(s)))
+        offset+=n
+    return p#np.array(p,dtype=object)
+
 class Server:
     """Flower server."""
 
@@ -68,9 +80,11 @@ class Server:
         self,
         *,
         client_manager: ClientManager,
+        contribution: bool = True,
         strategy: Optional[Strategy] = None,
         methodo, 
         threshold,
+        shapes=None,
     ) -> None:
         self._client_manager: ClientManager = client_manager
         self.parameters: Parameters = Parameters(
@@ -78,7 +92,7 @@ class Server:
         )
         self.strategy: Strategy = strategy if strategy is not None else FedAvg()
         self.max_workers: Optional[int] = None
-        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60] 		)
+        self.context = ts.context(ts.SCHEME_TYPE.MK_CKKS, 8192, coeff_mod_bit_sizes=[60, 40, 40, 60])
         self.context.global_scale = 2**40
         self.pk = None
         self.n = 0
@@ -86,6 +100,8 @@ class Server:
         self.length=0
         self.clients = None
         self.client_mapping = None
+        self.ce = contribution
+        self.shape = shapes
         self.methodo = methodo
         self.threshold = threshold
         self.waiting = []
@@ -329,10 +345,16 @@ class Server:
 
         #Send aggregated parameters to all clients
         #Collects the new parameters from all clients
-        client_instructions2 = self.strategy.configure_fit_enc(
-            (self.context,parameters_aggregated) ,
+        #client_instructions2 = self.strategy.configure_fit_enc(
+        #    (self.context,parameters_aggregated) ,
+        #    client_manager=self._client_manager,
+        #    clients = clients
+        #)
+        p2=ndarrays_to_parameters(reshape_parameters(parameters_aggregated.mk_decode(),self.shape))
+        client_instructions2 = self.strategy.configure_fit(
+            server_round=server_round,
+            parameters=p2 ,
             client_manager=self._client_manager,
-            clients = clients
         )
 
         if not client_instructions2:
@@ -346,11 +368,11 @@ class Server:
             self._client_manager.num_available(),
         )
 
-        if self.methodo == "set_aside":
+        if self.ce and self.methodo == "set_aside":
             fit_ins = (self.context,ts.ckks_vector(self.context,np.array([0],dtype=object).flatten()))
             client_instructions2 += [(client, fit_ins) for client in self.waiting]
             log(INFO, "set_aside: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
-        elif self.methodo == "set_aside2":
+        elif self.ce and self.methodo == "set_aside2":
             fit_ins = (self.context,parameters_aggregated)
             client_instructions2 += [(client, fit_ins) for client in self.waiting]
             log(INFO, "set_aside2: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
@@ -375,14 +397,14 @@ class Server:
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
             
         #send aggregated parameters to ce server
-        if self.check:
+        if self.ce and self.check:
             instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
             evaluate_client(self._client_manager.ce_server, instruction, timeout)
             self.check = False
             
         # compute the reputation of each client
         self.check = not random.randrange(5) #evaluate contribution with a probability of 20%
-        if self.check:
+        if self.ce and self.check:
             log(INFO, "#################CONTRIBUTION EVALUATION#################")
             shapley_values = self.compute_reputation(server_round, timeout)
             log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
@@ -408,58 +430,67 @@ class Server:
         # distributed : weighted average of clients results with new parameters
         # distributed_fit : weighted average of clients results with received parameters
         # centralized : server result
-        
-        log(INFO, "Identify the CE server")
-        min_num_clients = self.strategy.min_available_clients
-        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1,timeout = 300)
-        if clients == []:
-            return history
-        client_instructions= [(client, None) for client in clients]
+
+        if self.ce:
+            log(INFO, "Identify the CE server")
+            min_num_clients = self.strategy.min_available_clients
+            clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1,timeout = 300)
+            if clients == []:
+                return history
+            client_instructions= [(client, None) for client in clients]
             
-        results, failures = fn_clients(
-            client_fn=identify,
-            client_instructions=client_instructions,
-            max_workers=self.max_workers,
-            timeout=timeout,
-        )
-        rsa_public_key = []
-        for r in results:
-            if len(r[1]) == 2:
-                rsa_public_key = r[1]
-                self._client_manager.register_ce_server(r[0])
+            results, failures = fn_clients(
+                client_fn=identify,
+                client_instructions=client_instructions,
+                max_workers=self.max_workers,
+                timeout=timeout,
+            )
+            rsa_public_key = []
+            for r in results:
+                if len(r[1]) == 2:
+                    rsa_public_key = r[1]
+                    self._client_manager.register_ce_server(r[0])
                 
-        #send RSA public key to all clients
-        log(INFO, "Send RSA public key of the CE server to all clients")
-        clients = self._client_manager.sample(min_num_clients,min_num_clients)
-        client_instructions= [(client, rsa_public_key) for client in clients]
-        results, failures = fn_clients(
-            client_fn=send_public_key,
-            client_instructions=client_instructions,
-            max_workers=self.max_workers,
-            timeout=timeout,
-        )
+            #send RSA public key to all clients
+            log(INFO, "Send RSA public key of the CE server to all clients")
+            clients = self._client_manager.sample(min_num_clients,min_num_clients)
+            client_instructions= [(client, rsa_public_key) for client in clients]
+            results, failures = fn_clients(
+                client_fn=send_public_key,
+                client_instructions=client_instructions,
+                max_workers=self.max_workers,
+                timeout=timeout,
+            )
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
         log(INFO, "#################SET PK#################")
+        t0=time.time()
         pk_aggregated,self.n,self.clients = self.get_pk(timeout=timeout) #TODO fix timeout
         self.client_mapping = {c.cid:i for i,c in enumerate(self.clients)}
         self.n_tot = self.n
         self.set_pk(pk_aggregated)
         self.send_pk(self.context,timeout=timeout)
+        t01=time.time()-t0
         # Initialize parameters
         log(INFO, "#################GET INITIAL PARAMETERS#################")
         self.length = length
+        t02=time.time()
         self.parameters = self.get_initial_parameters_enc(timeout=timeout)
+        t03=time.time()-t02
         log(INFO, "Evaluating initial parameters")
+        t04=time.time()
         res = self.evaluate_round_enc(0,history,timeout) #self.strategy.evaluate(0, parameters=self.parameters)
+        t05=time.time()-t04
         if res is not None :
+            c = {k: v for k, v in res[1].items() if k!="predictions"}
             log(
                 INFO,
                 "initial parameters (loss, other metrics): %s, %s",
                 res[0],
-                res[1],
+                c,#res[1],
             )
+        history.add_round_time(0, {"fit_round":t01+t03,"evaluate_round":t05})
 
         # Run federated learning for num_rounds
         log(INFO, "FL starting")
@@ -467,6 +498,7 @@ class Server:
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
             log(INFO, "#################FIT ROUND#################")
+            t=time.time()
             res_fit = self.fit_round_enc(
                 server_round=current_round,
                 current_round=current_round,
@@ -474,6 +506,7 @@ class Server:
                 history=history,
                 timeout=timeout,
             )
+            self.round_fit_time = time.time()-t
             if res_fit is not None:
                 parameters_prime, fit_metrics, _ = res_fit  # fit_metrics_aggregated
                 if parameters_prime:
@@ -482,7 +515,10 @@ class Server:
                     server_round=current_round, metrics=fit_metrics
                 )
             # Evaluate model on a sample of available clients
+            t2=time.time()
             self.evaluate_round_enc(current_round,history,timeout)
+            t3=time.time()-t2
+            history.add_round_time(current_round, {"fit_round":self.round_fit_time,"evaluate_round":t3})
         self.eval_enc_last(num_rounds+1,start_time,history,timeout)    
 
         # Bookkeeping
@@ -575,12 +611,13 @@ class Server:
         res_cen = self.strategy.evaluate_enc(current_round, parameters=p)#[x/self.n for x in p])
         if res_cen is not None:
             loss_cen, metrics_cen = res_cen
+            c = {k: v for k, v in metrics_cen.items() if k!="predictions"}
             log(
                 INFO,
                 "Evaluation progress: (%s, %s, %s, %s)",
                 current_round,
                 loss_cen,
-                metrics_cen,
+                c,#metrics_cen,
                 timeit.default_timer() - start_time,
             )
             history.add_loss_centralized(server_round=current_round, loss=loss_cen)
@@ -922,8 +959,9 @@ def send_ds(
     client: ClientProxy, ins, timeout: Optional[float]
 ) -> Tuple[ClientProxy, FitRes]:
     """Refine parameters on a single client."""
-    context,enc = ins
-    fit_res = client.send_ds(context,enc, timeout=timeout)
+    #context,enc = ins
+    #fit_res = client.send_ds(context,enc, timeout=timeout)
+    fit_res = client.send_ds(None,ins, timeout=timeout)
     return client, fit_res
 
 def _handle_finished_future_after_fit(
