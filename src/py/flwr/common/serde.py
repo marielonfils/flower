@@ -352,7 +352,6 @@ def get_gradients_res_from_proto(
     """Deserialize `GetGradientsRes` from ProtoBuf."""
     return msg.gradients
 
-
 # === Fit messages ===
 
 
