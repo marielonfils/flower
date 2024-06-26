@@ -267,7 +267,10 @@ class NumPyClient(ABC):
         return response, answer
         
     def identify(self):
-        return False
+        return [""]
+        
+    def set_public_key(self,publickey):
+        return
 
 
 def has_get_properties(client: NumPyClient) -> bool:
@@ -299,6 +302,10 @@ def has_evaluate_enc(client: NumPyClient) -> bool:
 def has_identify(client: NumPyClient) -> bool:
     """Check if NumPyClient implements evaluate_enc."""
     return callable(getattr(client, "identify", None))
+    
+def has_set_public_key(client: NumPyClient) -> bool:
+    """Check if NumPyClient implements evaluate_enc."""
+    return callable(getattr(client, "set_public_key", None))
 
 def has_example_response(client: NumPyClient) -> bool:
     return callable(getattr(client, "example_response", None))
@@ -434,6 +441,9 @@ def _set_state(self: Client, state: RunState) -> None:
 
 def _identify(self):
     return self.numpy_client.identify()
+    
+def _set_public_key(self, public_key):
+    return self.numpy_client.set_public_key(public_key)
 
 def _wrap_numpy_client(client: NumPyClient) -> Client:
     member_dict: Dict[str, Callable] = {  # type: ignore
@@ -467,6 +477,9 @@ def _wrap_numpy_client(client: NumPyClient) -> Client:
         
     if has_identify(client=client):
         member_dict["identify"] = _identify
+    
+    if has_set_public_key(client=client):
+        member_dict["set_public_key"] = _set_public_key
 
     # Create wrapper class
     wrapper_class = type("NumPyClientWrapper", (Client,), member_dict)

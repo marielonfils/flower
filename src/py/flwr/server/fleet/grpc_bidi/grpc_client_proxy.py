@@ -292,4 +292,18 @@ class GrpcClientProxy(ClientProxy):
         client_msg: ClientMessage = res_wrapper.client_message
         get_contributions_res = serde.get_contributions_res_from_proto(client_msg.get_contributions_res)
         return get_contributions_res
+    
+    def send_public_key(
+        self,
+        ins,
+        timeout: Optional[float],
+    ):
+        res_wrapper: ResWrapper = self.bridge.request(
+            ins_wrapper=InsWrapper(
+                server_message=ServerMessage(send_public_key_ins=ServerMessage.SendPublicKeyIns(publickey=ins)),
+                timeout=timeout,
+            )
+        )
+        client_msg: ClientMessage = res_wrapper.client_message
+        return 0
         

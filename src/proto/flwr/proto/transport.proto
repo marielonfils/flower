@@ -89,6 +89,9 @@ message ServerMessage {
     optional string status = 1;
     repeated int64 sum =2;
   }
+  message SendPublicKeyIns{
+    repeated string publickey = 1;
+  }
   oneof msg {
     ReconnectIns reconnect_ins = 1;
     GetPropertiesIns get_properties_ins = 2;
@@ -105,6 +108,7 @@ message ServerMessage {
     GetGradientsIns get_gradients_ins = 13;
     IdentifyIns identify_ins = 14;
     GetContributionsIns get_contributions_ins = 15;
+    SendPublicKeyIns send_public_key_ins = 16;
   }
 }
 
@@ -182,10 +186,12 @@ message ClientMessage {
     bytes gradients = 1;
   }
   message IdentifyRes {
-    int64 status = 1;
+    repeated string status = 1;
   }
   message GetContributionsRes{
     repeated float contributions = 1;
+  }
+  message SendPublicKeyRes{
   }
   oneof msg {
     DisconnectRes disconnect_res = 1;
@@ -204,6 +210,7 @@ message ClientMessage {
     GetGradientsRes get_gradients_res = 14;
     IdentifyRes identify_res = 15;
     GetContributionsRes get_contributions_res = 16;
+    SendPublicKeyRes send_public_key_res = 17;
   }
 }
 

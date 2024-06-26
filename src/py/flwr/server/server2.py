@@ -46,6 +46,7 @@ sys.path.append('../../../../../TenSEAL')
 import tenseal as ts
 import numpy as np
 from functools import reduce
+import random
 
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
@@ -60,9 +61,6 @@ ReconnectResultsAndFailures = Tuple[
     List[Union[Tuple[ClientProxy, DisconnectRes], BaseException]],
 ]
 
-METHODO = "delete_one"
-THRESHOLD = -1.0
-
 class Server:
     """Flower server."""
 
@@ -71,6 +69,8 @@ class Server:
         *,
         client_manager: ClientManager,
         strategy: Optional[Strategy] = None,
+        methodo, 
+        threshold,
     ) -> None:
         self._client_manager: ClientManager = client_manager
         self.parameters: Parameters = Parameters(
@@ -86,6 +86,10 @@ class Server:
         self.length=0
         self.clients = None
         self.client_mapping = None
+        self.methodo = methodo
+        self.threshold = threshold
+        self.waiting = []
+        self.check = True
 
     def set_max_workers(self, max_workers: Optional[int]) -> None:
         """Set the max_workers used by ThreadPoolExecutor."""
@@ -179,7 +183,7 @@ class Server:
         return parameters_aggregated
 
     def compute_reputation(self, server_round, timeout):
-        clients = self._client_manager.all()
+        clients = self.clients + self.waiting
         client_instructions= [(client, None) for client in clients]
         results, failures = fn_clients(
             client_fn=get_gradients,
@@ -214,22 +218,56 @@ class Server:
         sv = results[0][1]
         return {clients_order[i]:sv[i] for i in range(len(sv))}
         
+    def update_n(self):
+        self.n = len(self.clients)
+        self.strategy.min_fit_clients = self.n
+        self.strategy.min_evaluate_clients = self.n
+        self.strategy.min_available_clients = self.n
+        return 
+        
+    def set_aside_clients(self, SVs, timeout):
+        changed = False
+        if SVs[-1][0] not in self.clients:
+            self.clients = self._client_manager.reregister(SVs[-1][0])
+            self.update_n()
+            changed = True
+        if SVs[-2][0] not in self.clients:
+            self.clients = self._client_manager.reregister(SVs[-2][0])
+            self.update_n()
+            changed = True
+        for sv in SVs:
+            if sv[0] not in self.clients and sv[1] > self.threshold:
+                self.clients = self._client_manager.reregister(sv[0])
+                self.update_n()
+                changed = True
+        for sv in SVs:
+            if len(self.clients) > 2 and sv[0] in self.clients and sv[1] < self.threshold:
+                self.clients = self._client_manager.set_aside(sv[0])
+                self.update_n()
+                changed = True
+        return changed
+                
     def eliminate_clients(self, shapley_values,server_round, timeout):
         sorted_shapley_values = sorted(shapley_values.items(), key=lambda x:x[1])
-        
-        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < THRESHOLD:
-           if METHODO == "delete_one":
-               self._client_manager.unregister(sorted_shapley_values[0][0])
-               clients = self._client_manager.all()
-               self.strategy.min_fit_clients = self.n
-               self.strategy.min_evaluate_clients = self.n
-               self.strategy.min_available_clients = self.n
-               self.change_n(len(clients),clients,timeout)
-               return True
-           elif METHODO == "fool":
-               pass
-           else:
-               pass
+        if len(shapley_values) > 2 and sorted_shapley_values[0][1] < self.threshold:
+            if self.methodo == "delete_one":
+                self.clients = self._client_manager.eliminate(sorted_shapley_values[0][0])
+                self.update_n()
+                return True
+            elif self.methodo == "delete":
+                sv = 0
+                while self.n > 2 and sorted_shapley_values[sv][1] < self.threshold:
+                    self.clients = self._client_manager.eliminate(sorted_shapley_values[sv][0])
+                    self.update_n()
+                    sv += 1
+                return True
+            elif self.methodo in ["set_aside","set_aside2"]:
+                changed = self.set_aside_clients(sorted_shapley_values, timeout)
+                if changed:
+                    self.waiting = list(self._client_manager.waiting.values())
+                return changed
+            else:
+                return False
         return False
         
     def fit_round_enc(
@@ -308,7 +346,14 @@ class Server:
             self._client_manager.num_available(),
         )
 
-        
+        if self.methodo == "set_aside":
+            fit_ins = (self.context,ts.ckks_vector(self.context,np.array([0],dtype=object).flatten()))
+            client_instructions2 += [(client, fit_ins) for client in self.waiting]
+            log(INFO, "set_aside: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
+        elif self.methodo == "set_aside2":
+            fit_ins = (self.context,parameters_aggregated)
+            client_instructions2 += [(client, fit_ins) for client in self.waiting]
+            log(INFO, "set_aside2: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
 
         # Collect `fit` results from all clients participating in this round
         results2, failures2 = fn_clients(
@@ -324,22 +369,28 @@ class Server:
             len(results2),
             len(failures2),
         )
+        results2 = [x for x in results2 if x[0] in self.clients]
         if len(failures2) != 0 or len(results2) != self.n:
             raise RuntimeError("Error while getting the new parameters")
             self.change_n(len(results2),[c for c,_ in results2] ,timeout)
             
         #send aggregated parameters to ce server
-        instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
-        evaluate_client(self._client_manager.ce_server, instruction, timeout)
+        if self.check:
+            instruction = EvaluateIns(parameters=ndarrays_to_parameters(parameters_aggregated.mk_decode()),config={})
+            evaluate_client(self._client_manager.ce_server, instruction, timeout)
+            self.check = False
+            
         # compute the reputation of each client
-        changed = False
-        if True:
+        self.check = not random.randrange(5) #evaluate contribution with a probability of 20%
+        if self.check:
+            log(INFO, "#################CONTRIBUTION EVALUATION#################")
             shapley_values = self.compute_reputation(server_round, timeout)
             log(INFO, "Shapley values round " + str(server_round) + " : " + str([(self.client_mapping[x.cid], shapley_values[x]) for x in shapley_values]))
             changed = self.eliminate_clients(shapley_values,server_round, timeout)
-            
-        if changed:
-            return None
+            if changed:
+                self.change_n(self.n,self.clients,timeout)
+                return None
+                
         # Aggregate training results
         aggregated_result: Tuple[
             Optional[Parameters],
@@ -357,20 +408,36 @@ class Server:
         # distributed : weighted average of clients results with new parameters
         # distributed_fit : weighted average of clients results with received parameters
         # centralized : server result
+        
         log(INFO, "Identify the CE server")
         min_num_clients = self.strategy.min_available_clients
-        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1)
+        clients = self._client_manager.sample(min_num_clients+1,min_num_clients+1,timeout = 300)
+        if clients == []:
+            return history
         client_instructions= [(client, None) for client in clients]
-        
+            
         results, failures = fn_clients(
             client_fn=identify,
             client_instructions=client_instructions,
             max_workers=self.max_workers,
             timeout=timeout,
         )
+        rsa_public_key = []
         for r in results:
-            if r[1] == 1:
+            if len(r[1]) == 2:
+                rsa_public_key = r[1]
                 self._client_manager.register_ce_server(r[0])
+                
+        #send RSA public key to all clients
+        log(INFO, "Send RSA public key of the CE server to all clients")
+        clients = self._client_manager.sample(min_num_clients,min_num_clients)
+        client_instructions= [(client, rsa_public_key) for client in clients]
+        results, failures = fn_clients(
+            client_fn=send_public_key,
+            client_instructions=client_instructions,
+            max_workers=self.max_workers,
+            timeout=timeout,
+        )
         
         log(INFO, "Initializing global parameters")
         # Public Keys aggregation
@@ -399,7 +466,7 @@ class Server:
         start_time = timeit.default_timer()
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
-            log(INFO, "#################FIT ROUND#################%f", current_round)
+            log(INFO, "#################FIT ROUND#################")
             res_fit = self.fit_round_enc(
                 server_round=current_round,
                 current_round=current_round,
@@ -503,7 +570,7 @@ class Server:
     
     def evaluate_enc(self,parameters,current_round, start_time, history):
         # Evaluate model using strategy implementation
-        log(INFO, "#################EVALUATE ENC#################%f",current_round)
+        log(INFO, "#################EVALUATE MODEL ON GLOBAL SERVER#################")
         p=parameters.mk_decode() #TODO check division by n
         res_cen = self.strategy.evaluate_enc(current_round, parameters=p)#[x/self.n for x in p])
         if res_cen is not None:
@@ -523,7 +590,7 @@ class Server:
 
     def evaluate_round_enc(self,server_round,history,timeout):
         # Evaluate model on a sample of available clients
-        log(INFO, "#################EVALUATE ROUND#################%f", server_round)
+        log(INFO, "#################EVALUATE MODEL ON CLIENTS#################")
 
         # Get clients and their respective instructions from strategy
         client_instructions = self.strategy.configure_evaluate_enc(
@@ -676,7 +743,8 @@ class Server:
 
     def disconnect_all_clients(self, timeout: Optional[float]) -> None:
         """Send shutdown signal to all clients."""
-        clients = self._client_manager.all()
+        all_clients = self._client_manager.all()
+        clients = [all_clients[k] for k in all_clients.keys()]
         instruction = ReconnectIns(seconds=None)
         client_instructions = [(client_proxy, instruction) for client_proxy in clients]
         _ = reconnect_clients(
@@ -684,8 +752,6 @@ class Server:
             max_workers=self.max_workers,
             timeout=timeout,
         )
-        instruction = ReconnectIns(seconds=None)
-        _ = reconnect_client(self._client_manager.ce_server, instruction, timeout)
 
     def _get_initial_parameters(self, timeout: Optional[float]) -> Parameters:
         """Get initial parameters from one of the available clients."""
@@ -999,6 +1065,12 @@ def identify(
     client: ClientProxy, ins, timeout: Optional[float]
 ) :
     status = client.identify(timeout=timeout)
+    return client, status
+    
+def send_public_key(
+    client: ClientProxy, ins, timeout: Optional[float]
+) :
+    status = client.send_public_key(ins,timeout=timeout)
     return client, status
     
     
