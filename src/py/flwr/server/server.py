@@ -19,6 +19,7 @@ import concurrent.futures
 import timeit
 from logging import DEBUG, INFO
 from typing import Dict, List, Optional, Tuple, Union
+import random
 
 from flwr.common import (
     Code,
@@ -178,10 +179,12 @@ class Server:
         for current_round in range(1, num_rounds + 1):
             # Train model and replace previous global model
             print("################### FIT ROUND ##########################")
+            t2=time.time()
             res_fit = self.fit_round(
                 server_round=current_round,
                 timeout=timeout,
             )
+            t3=time.time()-t2
             if res_fit is not None:
                 parameters_prime, fit_metrics, _ = res_fit  # fit_metrics_aggregated
                 if parameters_prime:
@@ -211,7 +214,9 @@ class Server:
 
             # Evaluate model on a sample of available clients
             print("################### EVALUATE ON CLIENTS ##########################")
+            t4=time.time()
             res_fed = self.evaluate_round(server_round=current_round, timeout=timeout)
+            t5=time.time()-t4
             if res_fed is not None:
                 loss_fed, evaluate_metrics_fed, _ = res_fed
                 if loss_fed is not None:
