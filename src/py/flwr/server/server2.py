@@ -369,11 +369,11 @@ class Server:
         )
 
         if self.ce and self.methodo == "set_aside":
-            fit_ins = (self.context,ts.ckks_vector(self.context,np.array([0],dtype=object).flatten()))
+            fit_ins = FitIns(ndarrays_to_parameters(np.array([0],dtype=object)),{})
             client_instructions2 += [(client, fit_ins) for client in self.waiting]
             log(INFO, "set_aside: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
         elif self.ce and self.methodo == "set_aside2":
-            fit_ins = (self.context,parameters_aggregated)
+            fit_ins = FitIns(p2,{})
             client_instructions2 += [(client, fit_ins) for client in self.waiting]
             log(INFO, "set_aside2: " + str(len(self.clients)) + " active clients and " + str(len(self.waiting)) + " waiting clients")
 
